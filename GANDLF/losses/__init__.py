@@ -2,7 +2,7 @@
 All the losses are to be called from here
 """
 from .segmentation import MCD_loss, MCD_log_loss, MCT_loss, KullbackLeiblerDivergence
-from .regression import CE, CEL, MSE_loss, L1_loss
+from .regression import CE, CEL, MSE_loss, Normalized_MSE_loss, L1_loss
 from .hybrid import DCCE, DCCE_Logits
 
 
@@ -16,6 +16,8 @@ global_losses_dict = {
     "dcce_logits": DCCE_Logits,
     "ce": CE,
     "mse": MSE_loss,
+    "nmse": Normalized_MSE_loss,
+    "normalized_mse": Normalized_MSE_loss,
     "cel": CEL,
     "tversky": MCT_loss,
     "kld": KullbackLeiblerDivergence,
