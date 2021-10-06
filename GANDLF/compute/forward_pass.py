@@ -294,7 +294,7 @@ def validate_network(
                     )
             else:
                 # final regression output
-                output_prediction = output_prediction / len(patch_loader)
+                output_prediction /= len(patch_loader)
                 if params["save_output"]:
                     outputToWrite += (
                         str(epoch)
