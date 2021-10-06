@@ -94,7 +94,7 @@ def train_network(model, train_dataloader, optimizer, params):
         else:
             params["subject_spacing"] = None
         loss, calculated_metrics, _ = step(model, image, label, params)
-        nan_loss = torch.isnan(loss)
+        nan_loss = torch.isnan(loss) or torch.isinf(loss)
         second_order = (
             hasattr(optimizer, "is_second_order") and optimizer.is_second_order
         )
