@@ -301,7 +301,7 @@ def validate_network(
                         + ","
                         + subject["subject_id"][0]
                         + ","
-                        + str(output_prediction)
+                        + str(output_prediction.cpu().item())
                         + "\n"
                     )
 
