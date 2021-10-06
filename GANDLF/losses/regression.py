@@ -174,6 +174,9 @@ def MSE_loss(inp, target, params, loss_type = "normal"):
         elif "nmse" in params["loss_function"]:
             if isinstance(params["loss_function"]["nmse"], dict):
                 reduction = params["loss_function"]["nmse"]["reduction"]
+        elif "normalized_mse" in params["loss_function"]:
+            if isinstance(params["loss_function"]["normalized_mse"], dict):
+                reduction = params["loss_function"]["normalized_mse"]["reduction"]
 
     if inp.shape[0] == 1:
         if params is not None:
