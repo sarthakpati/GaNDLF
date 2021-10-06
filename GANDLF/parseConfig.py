@@ -167,7 +167,7 @@ def parseConfig(config_file_path, version_check=True):
         if isinstance(params["loss_function"], dict):  # if this is a dict
             if len(params["loss_function"]) > 0:  # only proceed if something is defined
                 for key in params["loss_function"]:  # iterate through all keys
-                    if key == "mse":
+                    if key in ["mse", "nmse", "normalized_mse"]:
                         if (params["loss_function"][key] == None) or not (
                             "reduction" in params["loss_function"][key]
                         ):
@@ -180,10 +180,11 @@ def parseConfig(config_file_path, version_check=True):
                 defineDefaultLoss = True
         else:
             # check if user has passed a single string
-            if params["loss_function"] == "mse":
-                params["loss_function"] = {}
-                params["loss_function"]["mse"] = {}
-                params["loss_function"]["mse"]["reduction"] = "mean"
+            for key in ["mse", "nmse", "normalized_mse"]:
+                if key == params["loss_function"]:
+                    params["loss_function"] = {}
+                    params["loss_function"][key] = {}
+                    params["loss_function"][key]["reduction"] = "mean"
     else:
         defineDefaultLoss = True
     if defineDefaultLoss == True:
