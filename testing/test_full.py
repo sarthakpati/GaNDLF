@@ -734,6 +734,41 @@ def test_losses_segmentation_rad_2d(device):
     print("passed")
 
 
+def test_losses_regression_rad_2d(device):
+    print("Starting 2D Rad regression tests for losses")
+    # read and parse csv
+    parameters = parseConfig(
+        testingDir + "/config_regression.yaml", version_check=False
+    )
+    training_data, parameters["headers"] = parseTrainingCSV(
+        inputDir + "/train_2d_rad_regression.csv"
+    )
+    parameters = populate_header_in_parameters(parameters, parameters["headers"])
+    parameters["patch_size"] = patch_size["2D"]
+    parameters["model"]["dimension"] = 2
+    parameters["model"]["class_list"] = [0, 255]
+    # disabling amp because some losses do not support Half, yet
+    parameters["model"]["amp"] = False
+    parameters["model"]["num_channels"] = 3
+    parameters["model"]["architecture"] = "vgg11"
+    parameters["metrics"] = ["mse"]
+    # loop through selected models and train for single epoch
+    for loss_type in ["mse", "nmse"]:
+        parameters["loss_function"] = {}
+        parameters["loss_function"][loss_type] = {}
+        parameters["loss_function"][loss_type]["reduction"] = "mean"
+        Path(outputDir).mkdir(parents=True, exist_ok=True)
+        TrainingManager(
+            dataframe=training_data,
+            outputDir=outputDir,
+            parameters=parameters,
+            device=device,
+            reset_prev=True,
+        )
+        shutil.rmtree(outputDir)  # overwrite previous results
+    print("passed")
+
+
 def test_config_read():
     print("Starting testing reading configuration")
     # read and parse csv
