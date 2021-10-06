@@ -174,40 +174,51 @@ def MSE_loss(inp, target, params, loss_type="normal"):
                 if isinstance(params["loss_function"][key], dict):
                     reduction = params["loss_function"][key]["reduction"]
 
-    if inp.shape[0] == 1:
-        if params is not None:
-            acc_mse_loss += MSE(
-                inp,
-                target,
-                reduction=reduction,
-                scaling_factor=params["scaling_factor"],
-            )
-        else:
-            acc_mse_loss += MSE(inp, target)
-        # for i in range(0, params["model"]["num_classes"]):
-        #    acc_mse_loss += MSE(inp[i], target[i], reduction=params["loss_function"]['mse']["reduction"])
-        if loss_type == "normalized":
-            acc_mse_loss /= (target.item() + sys.float_info.epsilon)
-    else:
-        if params is not None:
-            for i in range(0, params["model"]["num_classes"]):
-                acc_mse_loss += MSE(
-                    inp[:, i, ...],
-                    target[:, i, ...],
-                    reduction=reduction,
-                    scaling_factor=params["scaling_factor"],
-                )
-                if loss_type == "normalized":
-                    acc_mse_loss /= (target + sys.float_info.epsilon)
-        else:
-            for i in range(0, inp.shape[1]):
-                acc_mse_loss += MSE(inp[:, i, ...], target[:, i, ...])
-                if loss_type == "normalized":
-                    acc_mse_loss /= (target + sys.float_info.epsilon)
-    if params is not None:
-        acc_mse_loss /= params["model"]["num_classes"]
-    else:
-        acc_mse_loss /= inp.shape[1]
+    if params["problem_type"] != "segmentation":
+        acc_mse_loss = MSE(
+            inp,
+            target,
+            reduction=reduction,
+            scaling_factor=params["scaling_factor"],
+        )
+
+    if (params["problem_type"] == "regression") and (loss_type == "normalized"):
+        acc_mse_loss /= (target.sum() + sys.float_info.epsilon)
+
+    # if inp.shape[0] == 1:
+    #     if params is not None:
+    #         acc_mse_loss += MSE(
+    #             inp,
+    #             target,
+    #             reduction=reduction,
+    #             scaling_factor=params["scaling_factor"],
+    #         )
+    #     else:
+    #         acc_mse_loss += MSE(inp, target)
+    #     # for i in range(0, params["model"]["num_classes"]):
+    #     #    acc_mse_loss += MSE(inp[i], target[i], reduction=params["loss_function"]['mse']["reduction"])
+    #     if loss_type == "normalized":
+    #         acc_mse_loss /= (target.item() + sys.float_info.epsilon)
+    # else:
+    #     if params is not None:
+    #         for i in range(0, params["model"]["num_classes"]):
+    #             acc_mse_loss += MSE(
+    #                 inp[:, i, ...],
+    #                 target[:, i, ...],
+    #                 reduction=reduction,
+    #                 scaling_factor=params["scaling_factor"],
+    #             )
+    #             if loss_type == "normalized":
+    #                 acc_mse_loss /= (target + sys.float_info.epsilon)
+    #     else:
+    #         for i in range(0, inp.shape[1]):
+    #             acc_mse_loss += MSE(inp[:, i, ...], target[:, i, ...])
+    #             if loss_type == "normalized":
+    #                 acc_mse_loss /= (target + sys.float_info.epsilon)
+    # if params is not None:
+    #     acc_mse_loss /= params["model"]["num_classes"]
+    # else:
+    #     acc_mse_loss /= inp.shape[1]
 
     return acc_mse_loss
 
