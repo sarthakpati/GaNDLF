@@ -23,9 +23,8 @@ def get_loss_and_metrics(image, ground_truth, predicted, params):
     """
     if isinstance(
         params["loss_function"], dict
-    ):  # this is currently only happening for mse_torch
-        # check for mse_torch
-        loss_function = global_losses_dict["mse"]
+    ):
+        loss_function = global_losses_dict[list(params["loss_function"].keys())[0]]
     else:
         loss_str_lower = params["loss_function"].lower()
         if loss_str_lower in global_losses_dict:
