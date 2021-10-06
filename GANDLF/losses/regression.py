@@ -161,7 +161,7 @@ def MSE(output, label, reduction="mean", scaling_factor=1):
     return loss
 
 
-def MSE_loss(inp, target, params):
+def MSE_loss(inp, target, params, loss_type = "normal"):
     acc_mse_loss = 0
     # if inp.shape != target.shape:
     #     sys.exit('Input and target shapes are inconsistent')
@@ -184,6 +184,8 @@ def MSE_loss(inp, target, params):
             acc_mse_loss += MSE(inp, target)
         # for i in range(0, params["model"]["num_classes"]):
         #    acc_mse_loss += MSE(inp[i], target[i], reduction=params["loss_function"]['mse']["reduction"])
+        if loss_type == "normalized":
+            acc_mse_loss /= target
     else:
         if params is not None:
             for i in range(0, params["model"]["num_classes"]):
@@ -193,12 +195,20 @@ def MSE_loss(inp, target, params):
                     reduction=reduction,
                     scaling_factor=params["scaling_factor"],
                 )
+                if loss_type == "normalized":
+                    acc_mse_loss /= target
         else:
             for i in range(0, inp.shape[1]):
                 acc_mse_loss += MSE(inp[:, i, ...], target[:, i, ...])
+                if loss_type == "normalized":
+                    acc_mse_loss /= target
     if params is not None:
         acc_mse_loss /= params["model"]["num_classes"]
     else:
         acc_mse_loss /= inp.shape[1]
 
     return acc_mse_loss
+
+def Normalized_MSE_loss(inp, target, params):
+
+    return MSE_loss(inp, target, params, loss_type = "normalized")
