@@ -1,3 +1,4 @@
+import sys
 import torch
 from torch.nn import MSELoss, CrossEntropyLoss, L1Loss
 from GANDLF.utils import one_hot
@@ -186,7 +187,7 @@ def MSE_loss(inp, target, params, loss_type="normal"):
         # for i in range(0, params["model"]["num_classes"]):
         #    acc_mse_loss += MSE(inp[i], target[i], reduction=params["loss_function"]['mse']["reduction"])
         if loss_type == "normalized":
-            acc_mse_loss /= target
+            acc_mse_loss /= (target.item() + sys.float_info.epsilon)
     else:
         if params is not None:
             for i in range(0, params["model"]["num_classes"]):
@@ -197,12 +198,12 @@ def MSE_loss(inp, target, params, loss_type="normal"):
                     scaling_factor=params["scaling_factor"],
                 )
                 if loss_type == "normalized":
-                    acc_mse_loss /= target
+                    acc_mse_loss /= (target + sys.float_info.epsilon)
         else:
             for i in range(0, inp.shape[1]):
                 acc_mse_loss += MSE(inp[:, i, ...], target[:, i, ...])
                 if loss_type == "normalized":
-                    acc_mse_loss /= target
+                    acc_mse_loss /= (target + sys.float_info.epsilon)
     if params is not None:
         acc_mse_loss /= params["model"]["num_classes"]
     else:
