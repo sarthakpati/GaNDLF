@@ -980,16 +980,47 @@ def test_preprocess_functions():
         patch_size=[128, 128, 128]
     )
     input_transformed = cropper(input_tensor)
+
+    cropper = global_preprocessing_dict["crop"]([64, 64, 64])
+    input_transformed = cropper(input_tensor)
+    assert input_transformed.shape == (1, 128, 128, 128), "Resampling should work"
+
+    cropper = global_preprocessing_dict["centercrop"]([128, 128, 128])
+    input_transformed = cropper(input_tensor)
+    assert input_transformed.shape == (1, 128, 128, 128), "Resampling should work"
+
     print("passed")
 
 
 def test_augmentation_functions():
     print("Starting testing augmentation functions")
-    input_tensor = torch.rand(3, 128, 128, 128)
     params_all_preprocessing_and_augs = parseConfig(
         testingDir + "/../samples/config_all_options.yaml"
     )
 
+    # this is for rgb augmentation
+    input_tensor = torch.rand(3, 128, 128, 1)
+    temp = global_augs_dict["colorjitter"](
+        params_all_preprocessing_and_augs["data_augmentation"]["colorjitter"]
+    )
+    output_tensor = None
+    output_tensor = temp(input_tensor)
+    assert output_tensor != None, "RGB Augmentation should work"
+
+    # ensuring all code paths are covered
+    for key in ["brightness", "contrast", "saturation", "hue"]:
+        params_all_preprocessing_and_augs["data_augmentation"]["colorjitter"][
+            key
+        ] = 0.25
+    temp = global_augs_dict["colorjitter"](
+        params_all_preprocessing_and_augs["data_augmentation"]["colorjitter"]
+    )
+    output_tensor = None
+    output_tensor = temp(input_tensor)
+    assert output_tensor != None, "RGB Augmentation should work"
+
+    # this is for all other augmentations
+    input_tensor = torch.rand(3, 128, 128, 128)
     for aug in params_all_preprocessing_and_augs["data_augmentation"]:
         aug_lower = aug.lower()
         output_tensor = None
@@ -1080,7 +1111,7 @@ def test_model_patch_divisibility():
 
 def test_one_hot_logic():
 
-    random_array = np.random.random_integers(0, 5, size=(20, 20, 20))
+    random_array = np.random.randint(5, size=(20, 20, 20))
     class_list = [*range(0, np.max(random_array) + 1)]
     img = sitk.GetImageFromArray(random_array)
     img_array = sitk.GetArrayFromImage(img)
