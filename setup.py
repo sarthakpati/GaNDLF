@@ -57,7 +57,6 @@ requirements = [
     "tqdm",
     "torchio==0.18.75",
     "pandas",
-    "pylint",
     "scikit-learn>=0.23.2",
     "scikit-image>=0.19.1",
     'pickle5>=0.0.11; python_version < "3.8.0"',
@@ -113,7 +112,7 @@ setup(
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: BSD License",
+        "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3.7",
