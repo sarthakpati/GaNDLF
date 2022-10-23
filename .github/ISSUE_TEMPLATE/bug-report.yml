@@ -24,7 +24,7 @@ body:
       label: What happened, and how to reproduce the behavior?
       description: Also tell us, what did you expect to happen?
       placeholder: Mention steps to reproduce the bug, i.e., 1. XXX, 2. YYY, 3. ZZZ
-      value: "A bug happened!"
+      value: Mention steps to reproduce the bug, i.e., 1. XXX, 2. YYY, 3. ZZZ
     validations:
       required: true
   - type: dropdown
