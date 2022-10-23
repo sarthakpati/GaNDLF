@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GaNDLF Support
+    url: https://github.com/mlcommons/GaNDLF/discussions
+    about: Please ask general questions here.
+  - name: Bug Report
+    url: https://github.com/mlcommons/GaNDLF/issues
+    about: Please report bug report here.
