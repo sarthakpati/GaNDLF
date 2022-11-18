@@ -161,9 +161,10 @@ def send_model_to_device(model, amp, device_str, optimizer):
         torch.nn.Module: The model after it has been sent to specified device
         bool: Whether automatic mixed precision is to be used or not.
         torch.device: Device type.
+        str: Device identifier.
     """
     if device_str == "cuda":
-        dev, device = check_env_variable_and_return_device(
+        device_id, device_torch = check_env_variable_and_return_device(
             "CUDA_VISIBLE_DEVICES", device_str
         )
         print("Total number of CUDA devices: ", torch.cuda.device_count())
@@ -174,8 +175,8 @@ def send_model_to_device(model, amp, device_str, optimizer):
         # ###
         # # https://discuss.pytorch.org/t/cuda-visible-devices-make-gpu-disappear/21439/17?u=sarthakpati
         # ###
-        if "," in dev:
-            dev_to_pass_to_torch = [*range(len(dev.split(",")))]
+        if "," in device_id:
+            dev_to_pass_to_torch = [*range(len(device_id.split(",")))]
             model = nn.DataParallel(model, device_ids=dev_to_pass_to_torch)
             ## this is the new api, but it is a bit finicky and needs further testing
             # model = nn.parallel.DistributedDataParallel(
@@ -186,13 +187,12 @@ def send_model_to_device(model, amp, device_str, optimizer):
         else:
             # if only a single visible device, it will be indexed as '0'
             if torch.cuda.device_count() == 1:
-                dev = "0"
+                device_id = "0"
 
-            dev_int = int(dev)
-            print("Device finally used: ", dev)
-            # device = torch.device('cuda:' + dev)
+            dev_int = int(device_id)
+            print("Device finally used: ", device_id)
             print("Sending model to aforementioned device")
-            model = model.to(device)
+            model = model.to(device_torch)
             print(
                 "Memory Total : ",
                 round(
@@ -211,7 +211,7 @@ def send_model_to_device(model, amp, device_str, optimizer):
             % (
                 torch.cuda.current_device(),
                 torch.cuda.device_count(),
-                torch.cuda.get_device_name(device),
+                torch.cuda.get_device_name(device_torch),
                 torch.cuda.is_available(),
             )
         )
@@ -228,14 +228,16 @@ def send_model_to_device(model, amp, device_str, optimizer):
 
             assert hthpu.is_available(), "HPU is not available"
 
-            dev, device = check_env_variable_and_return_device(
+            device_id, device_torch = check_env_variable_and_return_device(
                 "HABANA_VISIBLE_DEVICES", device_str
             )
+            print("Sending model to aforementioned device")
+            model = model.to(device_torch)
 
             if hthpu.device_count() == 1:
-                dev = "0"
+                device_id = "0"
 
-            if "," in dev or dev == "all":
+            if "," in device_id or device_id == "all":
                 print("*" * 20)
                 print("THIS NEEDS TO BE EXTENSIVELY TESTED")
                 print("*" * 20)
@@ -243,14 +245,16 @@ def send_model_to_device(model, amp, device_str, optimizer):
                 # dev_to_pass_to_torch = [*range(len(dev.split(",")))]
                 from torch.nn.parallel import DistributedDataParallel as DDP
 
-                model.to(device)
                 model = DDP(model)
-                sys.exit(1)
             else:
-                dev_int = int(dev)
-                print("Device finally used: ", dev)
+                dev_int = int(device_id)
+                print("Device finally used: ", device_id)
 
             print("Total number of HPU devices: ", hthpu.device_count())
+
+            if optimizer is not None:
+                # ensuring optimizer is in correct device - https://github.com/pytorch/pytorch/issues/8741
+                optimizer.load_state_dict(optimizer.state_dict())
 
         except ImportError:
             raise ImportError(
@@ -258,13 +262,13 @@ def send_model_to_device(model, amp, device_str, optimizer):
             )
     else:
         # we default to cpu
-        dev = -1
-        device = torch.device("cpu")
+        device_id = "-1"
+        device_torch = torch.device("cpu")
         model.cpu()
         amp = False
         print("Since Device is CPU, Mixed Precision Training is set to False")
 
-    return model, amp, device, dev
+    return model, amp, device_torch, device_id
 
 
 def get_model_dict(model, device_id):
