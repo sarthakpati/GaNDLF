@@ -122,14 +122,39 @@ def reverse_one_hot(predmask_tensor, class_list):
     return final_mask
 
 
-def send_model_to_device(model, amp, device, optimizer):
+def check_env_variable_and_return_device(environment_variable_to_check, device_str):
+    """
+    This function checks the environment variable and returns the device.
+
+    Args:
+        environment_variable_to_check (str): The environment variable to check.
+        device_str (str): The device string.
+
+    Returns:
+        torch.device: The device on which the model is to be trained.
+    """
+    if os.environ.get(environment_variable_to_check) is None:
+        sys.exit(
+            "Please set the environment variable '"
+            + environment_variable_to_check
+            + "' correctly before trying to run GANDLF on "
+            + device_str
+        )
+
+    device_ids = os.environ.get(environment_variable_to_check)
+    device_torch = torch.device(device_str)
+    print(f"Device requested via {environment_variable_to_check}: ", device_ids)
+    return device_ids, device_torch
+
+
+def send_model_to_device(model, amp, device_str, optimizer):
     """
     This function reads the environment variable(s) and send model to correct device
 
     Args:
         model (torch.nn.Module): The model that needs to be sent to specified device.
         amp (bool): Whether automatic mixed precision is to be used.
-        device (str): Device type.
+        device_str (str): Device type.
         optimizer (torch.optim): The optimizer for training.
 
     Returns:
@@ -137,19 +162,19 @@ def send_model_to_device(model, amp, device, optimizer):
         bool: Whether automatic mixed precision is to be used or not.
         torch.device: Device type.
     """
-    if device == "cuda":
-        if os.environ.get("CUDA_VISIBLE_DEVICES") is None:
-            sys.exit(
-                "Please set the environment variable 'CUDA_VISIBLE_DEVICES' correctly before trying to run GANDLF on GPU"
-            )
+    if device_str == "cuda":
+        dev, device = check_env_variable_and_return_device(
+            "CUDA_VISIBLE_DEVICES", device_str
+        )
+        print("Total number of CUDA devices: ", torch.cuda.device_count())
 
-        dev = os.environ.get("CUDA_VISIBLE_DEVICES")
+        assert torch.cuda.is_available(), "CUDA is not available on this machine"
+        
         # multi-gpu support
         # ###
         # # https://discuss.pytorch.org/t/cuda-visible-devices-make-gpu-disappear/21439/17?u=sarthakpati
         # ###
         if "," in dev:
-            device = torch.device("cuda")
             dev_to_pass_to_torch = [*range(len(dev.split(",")))]
             model = nn.DataParallel(model, device_ids=dev_to_pass_to_torch)
             ## this is the new api, but it is a bit finicky and needs further testing
@@ -159,9 +184,6 @@ def send_model_to_device(model, amp, device, optimizer):
             #     output_device=dev_to_pass_to_torch[0],
             # )
         else:
-            print("Device requested via CUDA_VISIBLE_DEVICES: ", dev)
-            print("Total number of CUDA devices: ", torch.cuda.device_count())
-
             # if only a single visible device, it will be indexed as '0'
             if torch.cuda.device_count() == 1:
                 dev = "0"
@@ -169,7 +191,6 @@ def send_model_to_device(model, amp, device, optimizer):
             dev_int = int(dev)
             print("Device finally used: ", dev)
             # device = torch.device('cuda:' + dev)
-            device = torch.device("cuda")
             print("Sending model to aforementioned device")
             model = model.to(device)
             print(
@@ -195,11 +216,45 @@ def send_model_to_device(model, amp, device, optimizer):
             )
         )
 
-        if not (optimizer is None):
+        if optimizer is not None:
             # ensuring optimizer is in correct device - https://github.com/pytorch/pytorch/issues/8741
             optimizer.load_state_dict(optimizer.state_dict())
 
+    elif device_str == "hpu":
+        # this is the gaudi-specific code
+        try:
+            import habana_frameworks.torch.core as htcore
+            import habana_frameworks.torch.hpu as hthpu
+
+            assert hthpu.is_available(), "HPU is not available"
+
+            dev, device = check_env_variable_and_return_device(
+                "HABANA_VISIBLE_DEVICES", device_str
+            )
+
+            if hthpu.device_count() == 1:
+                dev = "0"
+            
+            if "," in dev or dev == "all":
+                print("*" * 20)
+                print("THIS NEEDS TO BE EXTENSIVELY TESTED")
+                print("*" * 20)
+                from torch.nn.parallel import DistributedDataParallel as DDP
+                model.to(device)
+                model = DDP(model)
+                sys.exit(1)
+            else:
+                dev_int = int(dev)
+                print("Device finally used: ", dev)
+
+            print("Total number of HPU devices: ", hthpu.device_count())
+
+        except ImportError:
+            raise ImportError(
+                "Please install habana_frameworks.torch package to use HPU: https://docs.habana.ai/en/latest/Installation_Guide/Bare_Metal_Fresh_OS.html"
+            )
     else:
+        # we default to cpu
         dev = -1
         device = torch.device("cpu")
         model.cpu()
