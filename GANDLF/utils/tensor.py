@@ -223,7 +223,6 @@ def send_model_to_device(model, amp, device_str, optimizer):
     elif device_str == "hpu":
         # this is the gaudi-specific code
         try:
-            import habana_frameworks.torch.core as htcore
             import habana_frameworks.torch.hpu as hthpu
 
             assert hthpu.is_available(), "HPU is not available"
@@ -557,3 +556,14 @@ def get_output_from_calculator(predictions, ground_truth, calculator):
     else:
         temp_output = temp_output.cpu().item()
     return temp_output
+
+
+def update_step_for_hpu():
+    try:
+        import habana_frameworks.torch.core as htcore
+
+        htcore.mark_step()
+    except ImportError:
+        raise ImportError(
+            "Please install habana_frameworks.torch package to use HPU: https://docs.habana.ai/en/latest/Installation_Guide/Bare_Metal_Fresh_OS.html"
+        )
