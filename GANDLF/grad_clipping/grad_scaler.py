@@ -1,5 +1,6 @@
 import torch
 from GANDLF.grad_clipping.clip_gradients import dispatch_clip_grad_
+from GANDLF.utils import update_step_for_hpu
 
 
 class GradScaler:
@@ -25,6 +26,10 @@ class GradScaler:
                 clip_mode = "norm"  # default, in case none gets passed
             dispatch_clip_grad_(parameters, clip_grad, mode=clip_mode)
         self._scaler.step(optimizer)
+
+        if parameters["device"] == "hpu":
+            update_step_for_hpu()
+
         self._scaler.update()
 
     def state_dict(self):
