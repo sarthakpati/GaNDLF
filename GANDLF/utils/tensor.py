@@ -169,7 +169,7 @@ def send_model_to_device(model, amp, device_str, optimizer):
         print("Total number of CUDA devices: ", torch.cuda.device_count())
 
         assert torch.cuda.is_available(), "CUDA is not available on this machine"
-        
+
         # multi-gpu support
         # ###
         # # https://discuss.pytorch.org/t/cuda-visible-devices-make-gpu-disappear/21439/17?u=sarthakpati
@@ -234,12 +234,15 @@ def send_model_to_device(model, amp, device_str, optimizer):
 
             if hthpu.device_count() == 1:
                 dev = "0"
-            
+
             if "," in dev or dev == "all":
                 print("*" * 20)
                 print("THIS NEEDS TO BE EXTENSIVELY TESTED")
                 print("*" * 20)
+                ## unsure if this is needed for hpu, but it was needed for older nn.DataParallel API
+                # dev_to_pass_to_torch = [*range(len(dev.split(",")))]
                 from torch.nn.parallel import DistributedDataParallel as DDP
+
                 model.to(device)
                 model = DDP(model)
                 sys.exit(1)
