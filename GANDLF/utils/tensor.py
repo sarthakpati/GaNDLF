@@ -558,12 +558,24 @@ def get_output_from_calculator(predictions, ground_truth, calculator):
     return temp_output
 
 
-def update_step_for_hpu():
-    try:
-        import habana_frameworks.torch.core as htcore
+def update_step_for_hpu(parameters):
+    """
+    This function is used to update the step for HPU.
 
-        htcore.mark_step()
-    except ImportError:
-        raise ImportError(
-            "Please install habana_frameworks.torch package to use HPU: https://docs.habana.ai/en/latest/Installation_Guide/Bare_Metal_Fresh_OS.html"
-        )
+    Args:
+        parameters (dict): The parameters dictionary.
+
+    Raises:
+        ImportError: If the HPU is not installed.
+    """
+    if parameters["device"].__str__() == "hpu":
+        try:
+            import habana_frameworks.torch.core as htcore
+
+            htcore.mark_step()
+        except ImportError:
+            raise ImportError(
+                "Please install habana_frameworks.torch package to use HPU: https://docs.habana.ai/en/latest/Installation_Guide/Bare_Metal_Fresh_OS.html"
+            )
+    else:
+        pass
