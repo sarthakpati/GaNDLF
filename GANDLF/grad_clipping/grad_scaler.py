@@ -27,8 +27,7 @@ class GradScaler:
             dispatch_clip_grad_(parameters, clip_grad, mode=clip_mode)
         self._scaler.step(optimizer)
 
-        if parameters["device"] == "hpu":
-            update_step_for_hpu()
+        update_step_for_hpu(params)
 
         self._scaler.update()
 
