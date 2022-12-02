@@ -39,6 +39,7 @@ all_models_segmentation = [
     "uinc",
     "msdnet",
     "imagenet_unet",
+    "densevnet",
 ]
 # pre-defined regression/classification model types for testing
 all_models_regression = [
