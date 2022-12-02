@@ -65,6 +65,7 @@ class ModelBase(nn.Module):
             self.GlobalAvgPool = GlobalAveragePooling2D
             self.Norm = self.get_norm_type(self.norm_type.lower(), self.n_dimensions)
             self.converter = None
+            self.ConstantPad = nn.ConstantPad2d
 
         elif self.n_dimensions == 3:
             self.Conv = nn.Conv3d
@@ -78,6 +79,7 @@ class ModelBase(nn.Module):
             self.AdaptiveMaxPool = nn.AdaptiveMaxPool3d
             self.GlobalAvgPool = GlobalAveragePooling3D
             self.Norm = self.get_norm_type(self.norm_type.lower(), self.n_dimensions)
+            self.ConstantPad = nn.ConstantPad3d
 
             # define 2d to 3d model converters
             converter_type = parameters["model"].get("converter_type", "soft").lower()

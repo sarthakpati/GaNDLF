@@ -2,12 +2,16 @@
 
 import numpy as np
 import torch
+from .modelBase import ModelBase
 
 
-class DenseVNet(torch.nn.Module):
-    def __init__(self, in_channels: int = 1, out_channels: int = 1):
+class DenseVNet(ModelBase):
+    def __init__(self):
         super().__init__()
+        in_channels = self.n_channels
+        out_channels = self.n_classes
 
+        # defaults obtained from https://niftynet.readthedocs.io/en/dev/_modules/niftynet/network/dense_vnet.html#DenseVNet
         kernel_size = [5, 3, 3]
         num_downsample_channels = [24, 24, 24]
         num_skip_channels = [12, 24, 24]
@@ -24,12 +28,15 @@ class DenseVNet(torch.nn.Module):
                     kernel_size=kernel_size[i],
                     units=units[i],
                     growth_rate=growth_rate[i],
+                    conv=self.Conv,
+                    batch_norm_layer=self.BatchNorm,
+                    constant_pad_layer=self.ConstantPad,
                 )
             )
             in_channels = num_downsample_channels[i] + units[i] * growth_rate[i]
 
-        self.upsample_1 = torch.nn.Upsample(scale_factor=2, mode='trilinear')
-        self.upsample_2 = torch.nn.Upsample(scale_factor=4, mode='trilinear')
+        self.upsample_1 = torch.nn.Upsample(scale_factor=2, mode="trilinear")
+        self.upsample_2 = torch.nn.Upsample(scale_factor=4, mode="trilinear")
 
         self.out_conv = ConvBlock(
             in_channels=sum(num_skip_channels),
@@ -37,8 +44,11 @@ class DenseVNet(torch.nn.Module):
             kernel_size=3,
             batch_norm=True,
             preactivation=True,
+            conv=self.Conv,
+            batch_norm_layer=self.BatchNorm,
+            constant_pad_layer=self.ConstantPad,
         )
-        self.upsample_out = torch.nn.Upsample(scale_factor=2, mode='trilinear')
+        self.upsample_out = torch.nn.Upsample(scale_factor=2, mode="trilinear")
 
     def forward(self, x):
         x, skip_1 = self.dfs_blocks[0](x)
@@ -64,6 +74,9 @@ class ConvBlock(torch.nn.Module):
         stride=1,
         batch_norm=True,
         preactivation=False,
+        conv=torch.nn.Conv3d,
+        batch_norm_layer=torch.nn.BatchNorm3d,
+        constant_pad_layer=torch.nn.ConstantPad3d,
     ):
         super().__init__()
 
@@ -72,17 +85,15 @@ class ConvBlock(torch.nn.Module):
 
         padding = kernel_size - stride
         if padding % 2 != 0:
-            pad = torch.nn.ConstantPad3d(
-                tuple([padding % 2, padding - padding % 2] * 3), 0
-            )
+            pad = constant_pad_layer(tuple([padding % 2, padding - padding % 2] * 3), 0)
         else:
-            pad = torch.nn.ConstantPad3d(padding // 2, 0)
+            pad = constant_pad_layer(padding // 2, 0)
 
         if preactivation:
             layers = [
                 torch.nn.ReLU(),
                 pad,
-                torch.nn.Conv3d(
+                conv(
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=kernel_size,
@@ -90,11 +101,11 @@ class ConvBlock(torch.nn.Module):
                 ),
             ]
             if batch_norm:
-                layers = [torch.nn.BatchNorm3d(in_channels)] + layers
+                layers = [batch_norm_layer(in_channels)] + layers
         else:
             layers = [
                 pad,
-                torch.nn.Conv3d(
+                conv(
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=kernel_size,
@@ -102,7 +113,7 @@ class ConvBlock(torch.nn.Module):
                 ),
             ]
             if batch_norm:
-                layers.append(torch.nn.BatchNorm3d(out_channels))
+                layers.append(batch_norm_layer(out_channels))
             layers.append(torch.nn.ReLU())
 
         self.conv = torch.nn.Sequential(*layers)
@@ -121,6 +132,9 @@ class DenseFeatureStack(torch.nn.Module):
         dilation=1,
         batch_norm=True,
         batchwise_spatial_dropout=False,
+        conv=torch.nn.Conv3d,
+        batch_norm_layer=torch.nn.BatchNorm3d,
+        constant_pad_layer=torch.nn.ConstantPad3d,
     ):
         super().__init__()
 
@@ -138,6 +152,9 @@ class DenseFeatureStack(torch.nn.Module):
                     stride=1,
                     batch_norm=batch_norm,
                     preactivation=True,
+                    conv=conv,
+                    batch_norm_layer=batch_norm_layer,
+                    constant_pad_layer=constant_pad_layer,
                 )
             )
             in_channels += growth_rate
@@ -162,6 +179,9 @@ class DownsampleWithDfs(torch.nn.Module):
         kernel_size,
         units,
         growth_rate,
+        conv,
+        batch_norm_layer,
+        constant_pad_layer,
     ):
         super().__init__()
 
@@ -174,7 +194,14 @@ class DownsampleWithDfs(torch.nn.Module):
             preactivation=True,
         )
         self.dfs = DenseFeatureStack(
-            downsample_channels, units, growth_rate, 3, batch_norm=True
+            downsample_channels,
+            units,
+            growth_rate,
+            3,
+            batch_norm=True,
+            conv=conv,
+            batch_norm_layer=batch_norm_layer,
+            constant_pad_layer=constant_pad_layer,
         )
         self.skip = ConvBlock(
             in_channels=downsample_channels + units * growth_rate,
@@ -182,6 +209,9 @@ class DownsampleWithDfs(torch.nn.Module):
             kernel_size=3,
             batch_norm=True,
             preactivation=True,
+            conv=conv,
+            batch_norm_layer=batch_norm_layer,
+            constant_pad_layer=constant_pad_layer,
         )
 
     def forward(self, x):
@@ -190,19 +220,3 @@ class DownsampleWithDfs(torch.nn.Module):
         x_skip = self.skip(x)
 
         return x, x_skip
-
-
-def main():
-    input_value = np.random.randn(1, 1, 144, 144, 144)
-    input_value = torch.from_numpy(input_value).float().cuda()
-    print(input_value.dtype)
-
-    model = DenseVNet(3).cuda()
-    model.train()
-
-    out = model(input_value)
-    print(out.shape)
-
-
-if __name__ == '__main__':
-    main()
