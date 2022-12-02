@@ -6,8 +6,11 @@ from .modelBase import ModelBase
 
 
 class DenseVNet(ModelBase):
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        parameters,
+    ):
+        super(DenseVNet, self).__init__(parameters)
         in_channels = self.n_channels
         out_channels = self.n_classes
 
@@ -28,6 +31,7 @@ class DenseVNet(ModelBase):
                     kernel_size=kernel_size[i],
                     units=units[i],
                     growth_rate=growth_rate[i],
+                    dimensions=self.n_dimensions,
                     conv=self.Conv,
                     batch_norm_layer=self.BatchNorm,
                     constant_pad_layer=self.ConstantPad,
@@ -44,6 +48,7 @@ class DenseVNet(ModelBase):
             kernel_size=3,
             batch_norm=True,
             preactivation=True,
+            dimensions=self.n_dimensions,
             conv=self.Conv,
             batch_norm_layer=self.BatchNorm,
             constant_pad_layer=self.ConstantPad,
@@ -74,6 +79,7 @@ class ConvBlock(torch.nn.Module):
         stride=1,
         batch_norm=True,
         preactivation=False,
+        dimensions=3,
         conv=torch.nn.Conv3d,
         batch_norm_layer=torch.nn.BatchNorm3d,
         constant_pad_layer=torch.nn.ConstantPad3d,
@@ -85,7 +91,9 @@ class ConvBlock(torch.nn.Module):
 
         padding = kernel_size - stride
         if padding % 2 != 0:
-            pad = constant_pad_layer(tuple([padding % 2, padding - padding % 2] * 3), 0)
+            pad = constant_pad_layer(
+                tuple([padding % 2, padding - padding % 2] * dimensions), 0
+            )
         else:
             pad = constant_pad_layer(padding // 2, 0)
 
@@ -119,7 +127,12 @@ class ConvBlock(torch.nn.Module):
         self.conv = torch.nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.conv(x)
+        x1 = self.conv[0](x)
+        x2 = self.conv[1](x1)
+        x3 = self.conv[2](x2)
+        x4 = self.conv[3](x3)
+        return x4
+        # return self.conv(x)
 
 
 class DenseFeatureStack(torch.nn.Module):
@@ -132,6 +145,7 @@ class DenseFeatureStack(torch.nn.Module):
         dilation=1,
         batch_norm=True,
         batchwise_spatial_dropout=False,
+        dimensions=3,
         conv=torch.nn.Conv3d,
         batch_norm_layer=torch.nn.BatchNorm3d,
         constant_pad_layer=torch.nn.ConstantPad3d,
@@ -152,6 +166,7 @@ class DenseFeatureStack(torch.nn.Module):
                     stride=1,
                     batch_norm=batch_norm,
                     preactivation=True,
+                    dimensions=dimensions,
                     conv=conv,
                     batch_norm_layer=batch_norm_layer,
                     constant_pad_layer=constant_pad_layer,
@@ -179,6 +194,7 @@ class DownsampleWithDfs(torch.nn.Module):
         kernel_size,
         units,
         growth_rate,
+        dimensions,
         conv,
         batch_norm_layer,
         constant_pad_layer,
@@ -192,6 +208,10 @@ class DownsampleWithDfs(torch.nn.Module):
             stride=2,
             batch_norm=True,
             preactivation=True,
+            dimensions=dimensions,
+            conv=conv,
+            batch_norm_layer=batch_norm_layer,
+            constant_pad_layer=constant_pad_layer,
         )
         self.dfs = DenseFeatureStack(
             downsample_channels,
@@ -199,6 +219,7 @@ class DownsampleWithDfs(torch.nn.Module):
             growth_rate,
             3,
             batch_norm=True,
+            dimensions=dimensions,
             conv=conv,
             batch_norm_layer=batch_norm_layer,
             constant_pad_layer=constant_pad_layer,
@@ -209,6 +230,7 @@ class DownsampleWithDfs(torch.nn.Module):
             kernel_size=3,
             batch_norm=True,
             preactivation=True,
+            dimensions=dimensions,
             conv=conv,
             batch_norm_layer=batch_norm_layer,
             constant_pad_layer=constant_pad_layer,
