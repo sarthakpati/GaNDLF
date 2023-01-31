@@ -3,6 +3,8 @@
 - ACS/Soft conversion is available for ImageNet-pretrained UNet
 - Updated links, copyright and email to MLCommons
 - Allowing provision for user to generate multiple configurations for experimentation
+- Added ability to combine classification inference results from different architectures
+- Added ability to save `initial` and `latest` models in addition to `best`
 
 ## 0.0.15
 - Updated `setup.py` for `python>=3.8`

@@ -63,7 +63,7 @@ all_models_classification = [
 ]
 
 all_clip_modes = ["norm", "value", "agc"]
-all_norm_type = ["batch", "instance"]
+all_norm_types = ["batch", "instance"]
 
 all_model_type = ["torch", "openvino"]
 
@@ -114,7 +114,6 @@ def test_generic_download_data():
 
 def test_generic_constructTrainingCSV():
     print("01: Constructing training CSVs")
-    # inputDir = os.path.normpath('./testing/data')
     # delete previous csv files
     files = os.listdir(inputDir)
     for item in files:
@@ -845,7 +844,7 @@ def test_train_inference_classification_with_logits_multiple_folds_rad_3d(device
     parameters["output_dir"] = outputDir  # this is in inference mode
     InferenceManager(
         dataframe=training_data,
-        outputDir=outputDir,
+        outputDir=outputDir + "," + outputDir,
         parameters=parameters,
         device=device,
     )
@@ -996,8 +995,20 @@ def test_train_normtype_segmentation_rad_3d(device):
     parameters["model"]["print_summary"] = False
     parameters["model"]["num_channels"] = len(parameters["headers"]["channelHeaders"])
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
+
+    # these should raise exceptions
+    for norm_type in ["none", None]:
+        parameters["model"]["norm_type"] = norm_type
+        file_config_temp = get_temp_config_path()
+        with open(file_config_temp, "w") as file:
+            yaml.dump(parameters, file)
+        with pytest.raises(Exception) as exc_info:
+            parameters = parseConfig(file_config_temp, version_check_flag=False)
+
+        print("Exception raised:", exc_info.value)
+
     # loop through selected models and train for single epoch
-    for norm in ["batch", "instance"]:
+    for norm in all_norm_types:
         for model in ["resunet", "unet", "fcn", "unetr"]:
             parameters["model"]["architecture"] = model
             parameters["model"]["norm_type"] = norm
@@ -1220,6 +1231,15 @@ def test_generic_cli_function_preprocess():
     sanitize_outputDir()
     file_config_temp = get_temp_config_path()
     file_data = os.path.join(inputDir, "train_2d_rad_segmentation.csv")
+    input_data_df = pd.read_csv(file_data)
+    # add random metadata to ensure it gets preserved
+    input_data_df["metadata_test_string"] = input_data_df.shape[0] * ["test"]
+    input_data_df["metadata_test_float"] = np.random.rand(input_data_df.shape[0])
+    input_data_df["metadata_test_int"] = np.random.randint(
+        0, 100, input_data_df.shape[0]
+    )
+    temp_csv = os.path.join(outputDir, "temp.csv")
+    input_data_df.to_csv(temp_csv)
 
     parameters = parseConfig(file_config)
     parameters["modality"] = "rad"
@@ -1242,13 +1262,61 @@ def test_generic_cli_function_preprocess():
     with open(file_config_temp, "w") as outfile:
         yaml.dump(parameters, outfile, default_flow_style=False)
 
-    preprocess_and_save(file_data, file_config_temp, outputDir)
+    preprocess_and_save(temp_csv, file_config_temp, outputDir)
     training_data, parameters["headers"] = parseTrainingCSV(
         outputDir + "/data_processed.csv"
     )
 
     # check that the length of training data is what we expect
-    assert len(training_data) == 10, "Number of rows in dataframe is not 10"
+    assert (
+        len(training_data) == input_data_df.shape[0]
+    ), "Number of subjects in dataframe is not same as that of input dataframe"
+    assert (
+        len(training_data.columns) == len(input_data_df.columns) + 1
+    ), "Number of columns in output dataframe is not same as that of input dataframe"  # the +1 is for the added index column
+    sanitize_outputDir()
+
+    ## regression/classification preprocess
+    file_config = os.path.join(testingDir, "config_regression.yaml")
+    parameters = parseConfig(file_config)
+    parameters["modality"] = "rad"
+    parameters["patch_size"] = patch_size["2D"]
+    parameters["model"]["dimension"] = 2
+    parameters["model"]["amp"] = False
+    # read and parse csv
+    parameters["model"]["num_channels"] = 3
+    parameters["scaling_factor"] = 1
+    parameters["model"]["onnx_export"] = False
+    parameters["model"]["print_summary"] = False
+    parameters["data_preprocessing"]["to_canonical"] = None
+    parameters["data_preprocessing"]["rgba_to_rgb"] = None
+    file_data = os.path.join(inputDir, "train_2d_rad_regression.csv")
+    input_data_df = pd.read_csv(file_data)
+    # add random metadata to ensure it gets preserved
+    input_data_df["metadata_test_string"] = input_data_df.shape[0] * ["test"]
+    input_data_df["metadata_test_float"] = np.random.rand(input_data_df.shape[0])
+    input_data_df["metadata_test_int"] = np.random.randint(
+        0, 100, input_data_df.shape[0]
+    )
+    input_data_df.to_csv(temp_csv)
+
+    # store this separately for preprocess testing
+    with open(file_config_temp, "w") as outfile:
+        yaml.dump(parameters, outfile, default_flow_style=False)
+
+    preprocess_and_save(temp_csv, file_config_temp, outputDir)
+    training_data, parameters["headers"] = parseTrainingCSV(
+        outputDir + "/data_processed.csv"
+    )
+
+    # check that the length of training data is what we expect
+    assert (
+        len(training_data) == input_data_df.shape[0]
+    ), "Number of subjects in dataframe is not same as that of input dataframe"
+    assert (
+        len(training_data.columns) == len(input_data_df.columns) + 1
+    ), "Number of columns in output dataframe is not same as that of input dataframe"  # the +1 is for the added index column
+    sanitize_outputDir()
 
     print("passed")
 
@@ -2409,19 +2477,20 @@ def test_train_segmentation_unet_conversion_rad_3d(device):
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
     # loop through selected models and train for single epoch
     for model in ["unet", "unet_multilayer", "lightunet_multilayer"]:
-        parameters["model"]["converter_type"] = random.choice(["acs", "soft", "conv3d"])
-        parameters["model"]["architecture"] = model
-        parameters["nested_training"]["testing"] = -5
-        parameters["nested_training"]["validation"] = -5
-        sanitize_outputDir()
-        TrainingManager(
-            dataframe=training_data,
-            outputDir=outputDir,
-            parameters=parameters,
-            device=device,
-            resume=False,
-            reset=True,
-        )
+        for converter_type in ["acs", "soft", "conv3d"]:
+            parameters["model"]["converter_type"] = converter_type
+            parameters["model"]["architecture"] = model
+            parameters["nested_training"]["testing"] = -5
+            parameters["nested_training"]["validation"] = -5
+            sanitize_outputDir()
+            TrainingManager(
+                dataframe=training_data,
+                outputDir=outputDir,
+                parameters=parameters,
+                device=device,
+                resume=False,
+                reset=True,
+            )
 
     print("passed")
 
