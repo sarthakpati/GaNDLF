@@ -291,6 +291,28 @@ def training_loop(
     # datetime object containing current date and time
     print("Initializing training at :", get_date_time(), flush=True)
 
+    calculate_overall_metrics = (params["problem_type"] == "classification") or (
+        params["problem_type"] == "regression"
+    )
+
+    # get the overall metrics that are calculated automatically for classification/regression problems
+    if params["problem_type"] == "regression":
+        overall_metrics = overall_stats(torch.Tensor([1]), torch.Tensor([1]), params)
+    elif params["problem_type"] == "classification":
+        # this is just used to generate the headers for the overall stats
+        org_num_classes = params["model"]["num_classes"]
+        params["model"]["num_classes"] = 3
+        overall_metrics = overall_stats(
+            torch.Tensor([0, 0, 2, 2, 1, 2]).to(dtype=torch.int32),
+            torch.Tensor([0, 0, 2, 2, 1, 2]).to(dtype=torch.int32),
+            params,
+        )
+        # original number of classes are restored
+        params["model"]["num_classes"] = org_num_classes
+    if calculate_overall_metrics:
+        for metric in overall_metrics:
+            params["metrics"][metric] = 0
+
     # Setup a few loggers for tracking
     train_logger = Logger(
         logger_csv_filename=os.path.join(output_dir, "logs_training.csv"),
@@ -370,9 +392,7 @@ def training_loop(
 
     # Iterate for number of epochs
     for epoch in range(start_epoch, epochs):
-
         if params["track_memory_usage"]:
-
             file_to_write_mem = os.path.join(output_dir, "memory_usage.csv")
             if os.path.exists(file_to_write_mem):
                 # append to previously generated file
@@ -500,19 +520,19 @@ def training_loop(
         # save the latest model
         if os.path.exists(model_paths["latest"]):
             os.remove(model_paths["latest"])
-            save_model(
-                {
-                    "epoch": 0,
-                    "model_state_dict": model_dict,
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": best_loss,
-                },
-                model,
-                params,
-                model_paths["latest"],
-                onnx_export=False,
-            )
-            print("Latest model saved.")
+        save_model(
+            {
+                "epoch": 0,
+                "model_state_dict": model_dict,
+                "optimizer_state_dict": optimizer.state_dict(),
+                "loss": best_loss,
+            },
+            model,
+            params,
+            model_paths["latest"],
+            onnx_export=False,
+        )
+        print("Latest model saved.")
         print("Current Best epoch: ", best_train_idx)
 
         if patience > params["patience"]:
@@ -568,7 +588,6 @@ def training_loop(
 
 
 if __name__ == "__main__":
-
     import argparse, pickle, pandas
 
     torch.multiprocessing.freeze_support()
