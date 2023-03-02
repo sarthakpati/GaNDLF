@@ -44,6 +44,7 @@ device = "cpu"
 ## global defines
 # pre-defined segmentation model types for testing
 all_models_segmentation = [
+    "convnext",
     "lightunet",
     "lightunet_multilayer",
     "unet",
