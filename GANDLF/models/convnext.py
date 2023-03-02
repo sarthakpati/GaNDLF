@@ -3,14 +3,13 @@
 from .modelBase import ModelBase
 from transformers import ConvNextConfig, ConvNextModel
 
+
 class ConvNeXT(ModelBase):
     def __init__(
         self,
         parameters: dict,
-        ):
-
-        # translate parameters to ConvNextConfig
-
+    ):
+        super(ConvNeXT, self).__init__(parameters)
         # Initializing a ConvNext convnext-tiny-224 style configuration
         configuration = ConvNextConfig()
         """ default config
@@ -49,12 +48,34 @@ class ConvNeXT(ModelBase):
         }
         """
 
+        # translate parameters to ConvNextConfig
+        configuration.__setattr__("depths", parameters["model"].get("depths", [3, 3]))
+        configuration.__setattr__(
+            "hidden_sizes", parameters["model"].get("depths", [96, 192])
+        )
+        configuration.__setattr__(
+            "num_stages", parameters["model"].get("num_stages", 2)
+        )
+        configuration.__setattr__(
+            "stage_names", parameters["model"].get("stage_names", ["stem", "stage1"])
+        )
         # Initializing a model (with random weights) from the convnext-tiny-224 style configuration
         self.model = ConvNextModel(configuration)
 
         if self.n_dimensions == 3:
             self.model = self.converter(self.model)
-    
-    def forward(self, x):
 
-        return self.model(x)
+    def forward(self, x):
+        output_from_convnext = self.model(pixel_values=x)
+        # output_from_convnext.keys()
+        # odict_keys(['last_hidden_state', 'pooler_output'])
+        # none of these are corresponding to the size of the input image, which is [128,128]
+
+        pooler_output_after_final_layer = self.final_convolution_layer(
+            output_from_convnext.pooler_output
+        )
+        last_hidden_state_after_final_layer = self.final_convolution_layer(
+            output_from_convnext.last_hidden_state
+        )
+
+        return output_from_convnext.pooler_output
