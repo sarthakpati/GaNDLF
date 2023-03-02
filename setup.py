@@ -78,6 +78,7 @@ requirements = [
     "twine",
     "zarr",
     "keyring",
+    "transformers==4.26.1"
 ]
 
 # pytorch doesn't have LTS support on OSX - https://github.com/mlcommons/GaNDLF/issues/389
