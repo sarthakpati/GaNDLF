@@ -51,7 +51,7 @@ class ConvNeXT(ModelBase):
         # translate parameters to ConvNextConfig
         configuration.__setattr__("depths", parameters["model"].get("depths", [3, 3]))
         configuration.__setattr__(
-            "hidden_sizes", parameters["model"].get("depths", [96, 192])
+            "hidden_sizes", parameters["model"].get("hidden_sizes", [96, 192])
         )
         configuration.__setattr__(
             "num_stages", parameters["model"].get("num_stages", 2)
