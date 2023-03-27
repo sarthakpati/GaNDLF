@@ -1,20 +1,5 @@
 This document will help you get started with GaNDLF using a few representative examples.
 
-## Table of Contents
-
-- [Table of Contents](#table-of-contents)
-- [Installation](#installation)
-- [Sample Data](#sample-data)
-- [Segmentation](#segmentation)
-  - [Segmentation using 3D Radiology Images](#segmentation-using-3d-radiology-images)
-  - [Segmentation using 2D Histology Images](#segmentation-using-2d-histology-images)
-- [Classification](#classification)
-  - [Classification using 3D Radiology Images](#classification-using-3d-radiology-images)
-  - [Classification (patch-level) using 2D Histology Images](#classification-patch-level-using-2d-histology-images)
-- [Regression](#regression)
-  - [Regression using 3D Radiology Images](#regression-using-3d-radiology-images)
-  - [Regression (patch-level) using 2D Histology Images](#regression-patch-level-using-2d-histology-images)
-
 
 ## Installation
 
@@ -23,8 +8,6 @@ Please follow the [installation instructions](./setup.md) to install GaNDLF. Whe
 ```bash
 (venv_gandlf) $> ### subsequent commands go here
 ```
-
-[Back To Top &uarr;](#table-of-contents)
 
 
 ## Sample Data
@@ -47,8 +30,6 @@ The `data` directory content should look like the example below (for brevity, th
 ```
 
 **Note**: When using your own data, it is vital to correctly [prepare your data](https://mlcommons.github.io/GaNDLF/usage#preparing-the-data) prior to using it for any computational task (such as AI training or inference).
-
-[Back To Top &uarr;](#table-of-contents)
 
 
 ## Segmentation
@@ -73,8 +54,6 @@ The `data` directory content should look like the example below (for brevity, th
 3. [Construct the configuration file](https://mlcommons.github.io/GaNDLF/usage#customize-the-training) to help design the computation (training and inference) pipeline. An example file for this task can be found [here](https://github.com/mlcommons/GaNDLF/blob/master/samples/config_getting_started_segmentation_rad3d.yaml). This configuration has various levels of customization, and those details are presented on [this page](https://mlcommons.github.io/GaNDLF/customize).
 4. Now you are ready to [train your model](https://mlcommons.github.io/GaNDLF/usage#running-gandlf-traininginference).
 5. Once the model is trained, you can infer it on unseen data. Remember to construct a [similar data file](https://mlcommons.github.io/GaNDLF/usage#constructing-the-data-csv) for the unseen data, just without `Label` or `ValueToPredict` headers.
-
-[Back To Top &uarr;](#table-of-contents)
 
 ### Segmentation using 2D Histology Images
 
@@ -118,8 +97,6 @@ The `data` directory content should look like the example below (for brevity, th
 
 **Note**: Please consider the [special considerations for histology images during inference](https://mlcommons.github.io/GaNDLF/usage#special-note-for-inference-for-histology-images).
 
-[Back To Top &uarr;](#table-of-contents)
-
 
 ## Classification
 ### Classification using 3D Radiology Images
@@ -143,8 +120,6 @@ The `data` directory content should look like the example below (for brevity, th
 3. [Construct the configuration file](https://mlcommons.github.io/GaNDLF/usage#customize-the-training) that will help design the computation (training and inference) pipeline. An example file for this task can be found [here](https://github.com/mlcommons/GaNDLF/blob/master/samples/config_getting_started_classification_rad3d.yaml). This configuration has various levels of customization, and those details are presented on [this page](https://mlcommons.github.io/GaNDLF/customize).
 4. Now you are ready to [train your model](https://mlcommons.github.io/GaNDLF/usage#running-gandlf-traininginference).
 5. Once the model is trained, you can infer it on unseen data. Remember to construct a [similar data file](https://mlcommons.github.io/GaNDLF/usage#constructing-the-data-csv) for the unseen data, but without `Label` or `ValueToPredict` headers.
-
-[Back To Top &uarr;](#table-of-contents)
 
 ### Classification (patch-level) using 2D Histology Images
 
@@ -188,8 +163,6 @@ The `data` directory content should look like the example below (for brevity, th
 
 **Note**: Please consider the [special considerations for histology images during inference](https://mlcommons.github.io/GaNDLF/usage#special-note-for-inference-for-histology-images).
 
-[Back To Top &uarr;](#table-of-contents)
-
 
 ## Regression
 ### Regression using 3D Radiology Images
@@ -213,8 +186,6 @@ The `data` directory content should look like the example below (for brevity, th
 3. [Construct the configuration file](https://mlcommons.github.io/GaNDLF/usage#customize-the-training) that will help design the computation (training and inference) pipeline. An example file for this task can be found [here](https://github.com/mlcommons/GaNDLF/blob/master/samples/config_getting_started_regression_rad3d.yaml). This configuration has various levels of customization, and those details are presented on [this page](https://mlcommons.github.io/GaNDLF/customize).
 4. Now you are ready to [train your model](https://mlcommons.github.io/GaNDLF/usage#running-gandlf-traininginference).
 5. Once the model is trained, you can infer it on unseen data. Remember to construct a [similar data file](https://mlcommons.github.io/GaNDLF/usage#constructing-the-data-csv) for the unseen data, but without `Label` or `ValueToPredict` headers.
-
-[Back To Top &uarr;](#table-of-contents)
 
 ### Regression (patch-level) using 2D Histology Images
 
@@ -256,5 +227,3 @@ The `data` directory content should look like the example below (for brevity, th
 5. Now you are ready to [train your model](https://mlcommons.github.io/GaNDLF/usage#running-gandlf-traininginference).
 6. Once the model is trained, you can infer it on unseen data. Remember to construct a [similar data file](https://mlcommons.github.io/GaNDLF/usage#constructing-the-data-csv) for the unseen data, but without `Label` or `ValueToPredict` headers.
 7. **Note**: Please consider the [special considerations for histology images during inference](https://mlcommons.github.io/GaNDLF/usage#special-note-for-inference-for-histology-images).
-
-[Back To Top &uarr;](#table-of-contents)
