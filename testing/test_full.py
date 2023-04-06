@@ -46,7 +46,7 @@ device = "cpu"
 ## global defines
 # pre-defined segmentation model types for testing
 all_models_segmentation = [
-    "convnext",
+    "upernet",
     "lightunet",
     "lightunet_multilayer",
     "unet",
@@ -789,7 +789,7 @@ def test_train_inference_optimize_segmentation_rad_2d(device):
     parameters["save_output"] = True
     parameters["model"]["num_channels"] = 3
     parameters["metrics"] = ["dice"]
-    parameters["model"]["architecture"] = "resunet"
+    parameters["model"]["architecture"] = "upernet"
     parameters["model"]["onnx_export"] = True
     parameters["model"]["print_summary"] = False
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
