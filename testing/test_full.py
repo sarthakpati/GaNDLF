@@ -334,6 +334,7 @@ def test_train_segmentation_rad_3d(device):
     parameters["model"]["num_channels"] = len(parameters["headers"]["channelHeaders"])
     parameters["model"]["onnx_export"] = False
     parameters["model"]["print_summary"] = False
+    parameters["verbose"] = False # remove
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
     # loop through selected models and train for single epoch
     for model in all_models_segmentation:
