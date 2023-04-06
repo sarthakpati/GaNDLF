@@ -2,6 +2,7 @@
 """All Models in GANDLF are to be derived from this base class code."""
 
 import torch.nn as nn
+import torch.nn.functional as F
 
 from acsconv.converters import ACSConverter, Conv3dConverter, SoftACSConverter
 
@@ -97,6 +98,24 @@ class ModelBase(nn.Module):
 
     def get_final_layer(self, final_convolution_layer):
         return get_modelbase_final_layer(final_convolution_layer)
+
+    def apply_final_layer(self, raw_inputs):
+        """
+        This function applies the final layer to the model.
+
+        Args:
+            raw_inputs (torch.Tensor): The raw inputs to the model.
+
+        Returns:
+            torch.Tensor: The output of the model.
+        """
+        if not self.final_convolution_layer is None:
+            if self.final_convolution_layer == F.softmax:
+                out = self.final_convolution_layer(raw_inputs, dim=1)
+            else:
+                out = self.final_convolution_layer(raw_inputs)
+
+        return out
 
     def get_norm_type(self, norm_type, dimensions):
         """
