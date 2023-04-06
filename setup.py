@@ -79,7 +79,7 @@ requirements = [
     "twine",
     "zarr",
     "keyring",
-    "transformers==4.26.1"
+    "transformers==4.26.1",
 ]
 
 if __name__ == "__main__":
