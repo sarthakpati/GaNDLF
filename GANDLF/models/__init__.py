@@ -34,7 +34,7 @@ from .MSDNet import MSDNet
 from .brain_age import brainage
 from .unetr import unetr
 from .transunet import transunet
-from .convnext import ConvNeXT
+from .upernet import UPerNet
 
 # defining dict for models - key is the string and the value is the transform object
 global_models_dict = {
@@ -95,7 +95,7 @@ global_models_dict = {
     "efficientnetb5": efficientnetB5,
     "efficientnetb6": efficientnetB6,
     "efficientnetb7": efficientnetB7,
-    "convnext": ConvNeXT,
+    "upernet": UPerNet,
 }
 
 
