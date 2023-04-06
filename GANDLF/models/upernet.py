@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 
 from .modelBase import ModelBase
-from transformers import ConvNextConfig, ConvNextModel
+from transformers import ConvNextConfig, UperNetConfig, UperNetForSemanticSegmentation
 
 
-class ConvNeXT(ModelBase):
+class UPerNet(ModelBase):
     def __init__(
         self,
         parameters: dict,
     ):
-        super(ConvNeXT, self).__init__(parameters)
+        super(UPerNet, self).__init__(parameters)
         # Initializing a ConvNext convnext-tiny-224 style configuration
-        configuration = ConvNextConfig()
+        backbone_config = ConvNextConfig()
         """ default config
         ConvNextConfig {
             "depths": [
@@ -49,18 +49,22 @@ class ConvNeXT(ModelBase):
         """
 
         # translate parameters to ConvNextConfig
-        configuration.__setattr__("depths", parameters["model"].get("depths", [3, 3]))
-        configuration.__setattr__(
+        backbone_config.__setattr__("depths", parameters["model"].get("depths", [3, 3]))
+        backbone_config.__setattr__(
             "hidden_sizes", parameters["model"].get("hidden_sizes", [96, 192])
         )
-        configuration.__setattr__(
+        backbone_config.__setattr__(
             "num_stages", parameters["model"].get("num_stages", 2)
         )
-        configuration.__setattr__(
+        backbone_config.__setattr__(
             "stage_names", parameters["model"].get("stage_names", ["stem", "stage1"])
         )
+
+        backbone_config = ConvNextConfig(out_features=["stage1", "stage2", "stage3", "stage4"])
+        config = UperNetConfig(backbone_config=backbone_config)
+
         # Initializing a model (with random weights) from the convnext-tiny-224 style configuration
-        self.model = ConvNextModel(configuration)
+        model = UperNetForSemanticSegmentation(config)
 
         if self.n_dimensions == 3:
             self.model = self.converter(self.model)
