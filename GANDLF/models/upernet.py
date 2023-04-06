@@ -3,7 +3,8 @@
 
 from .modelBase import ModelBase
 from transformers import UperNetForSemanticSegmentation
-from torchio.transforms import CropOrPad
+
+# from torchio.transforms import CropOrPad
 
 
 class UPerNet(ModelBase):
@@ -23,13 +24,25 @@ class UPerNet(ModelBase):
             self.model = self.model_2d
 
         # set the number of classes and channels
-        self.model.decode_head.classifier.out_channels = self.n_classes
-        self.model.backbone.embeddings.patch_embeddings.in_channels = self.n_channels
+        self.in_conv = self.Conv(
+            self.n_channels,
+            self.model.backbone.embeddings.patch_embeddings.in_channels,
+            kernel_size=1,
+            stride=1,
+        )
+        self.out_conv = self.Conv(
+            self.model.decode_head.classifier.out_channels,
+            self.n_classes,
+            kernel_size=1,
+            stride=1,
+        )
+        # self.model.decode_head.classifier.out_channels = self.n_classes
+        # self.model.backbone.embeddings.patch_embeddings.in_channels = self.n_channels
 
-        self.model.config.__setattr__("num_labels", self.n_classes)
-        backbone_config = self.model.config.__getattribute__("backbone_config")
-        backbone_config.__setattr__("num_channels", self.n_channels)
-        self.model.config.__setattr__("backbone_config", backbone_config)
+        # self.model.config.__setattr__("num_labels", self.n_classes)
+        # backbone_config = self.model.config.__getattribute__("backbone_config")
+        # backbone_config.__setattr__("num_channels", self.n_channels)
+        # self.model.config.__setattr__("backbone_config", backbone_config)
 
     def forward(self, x):
         # original_shape = x.shape
@@ -50,10 +63,12 @@ class UPerNet(ModelBase):
         #         (original_shape[1], size_to_transform, size_to_transform)
         #     )(x)
 
-        output_from_model = self.model(x)
+        x_0 = self.in_conv(x)
+        output_from_model = self.model(x_0)
+        final_output = self.out_conv(output_from_model.logits)
 
         # output_original_shape = CropOrPad(tuple(original_shape[1:]))(
         #     output_from_model.logits
         # )
 
-        return self.apply_final_layer(output_from_model)
+        return self.apply_final_layer(final_output)
