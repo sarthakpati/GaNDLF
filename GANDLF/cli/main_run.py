@@ -4,8 +4,7 @@ from pathlib import Path
 from GANDLF.training_manager import TrainingManager, TrainingManager_split
 from GANDLF.inference_manager import InferenceManager
 from GANDLF.parseConfig import parseConfig
-from GANDLF.utils import populate_header_in_parameters, parseTrainingCSV
-
+from GANDLF.utils import populate_header_in_parameters, parseTrainingCSV, parseTestingCSV
 
 def main_run(
     data_csv, config_file, model_dir, train_mode, device, resume, reset, output_dir=None
@@ -47,6 +46,13 @@ def main_run(
                 ), "The parameters are not the same as the ones stored in the previous run, please re-check."
         parameters["output_dir"] = model_dir
         Path(parameters["output_dir"]).mkdir(parents=True, exist_ok=True)
+
+    # if the output directory is not specified, then use the model directory even for the testing data
+    # default behavior
+    parameters["output_dir"] = output_dir
+    if output_dir is None:
+        parameters["output_dir"] = model_dir
+    Path(parameters["output_dir"]).mkdir(parents=True, exist_ok=True)
 
     if "-1" in device:
         device = "cpu"
@@ -101,6 +107,9 @@ def main_run(
                 reset=reset,
             )
         else:
+            _, data_full, headers = parseTestingCSV(
+                file_data_full, parameters["output_dir"]
+            )
             InferenceManager(
                 dataframe=data_full,
                 modelDir=model_dir,

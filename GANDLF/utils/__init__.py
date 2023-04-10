@@ -28,6 +28,7 @@ from .tensor import (
 from .write_parse import (
     writeTrainingCSV,
     parseTrainingCSV,
+    parseTestingCSV,
     get_dataframe,
     convert_relative_paths_in_dataframe,
 )
@@ -54,4 +55,5 @@ from .modelio import (
     load_model,
     load_ov_model,
     save_model,
+    optimize_and_save_model,
 )

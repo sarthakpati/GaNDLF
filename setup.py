@@ -3,7 +3,7 @@
 """The setup script."""
 
 
-import os, sys, re
+import sys, re
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 from setuptools.command.develop import develop
@@ -17,27 +17,19 @@ except Exception as error:
     sys.stderr.write("Warning: Could not open '%s' due %s\n" % ("README.md", error))
 
 
-def git_submodule_update():
-    ## submodule update
-    os.system("git submodule update --init --recursive")
-
-
 class CustomInstallCommand(install):
     def run(self):
         install.run(self)
-        git_submodule_update()
 
 
 class CustomDevelopCommand(develop):
     def run(self):
         develop.run(self)
-        git_submodule_update()
 
 
 class CustomEggInfoCommand(egg_info):
     def run(self):
         egg_info.run(self)
-        git_submodule_update()
 
 
 try:
@@ -50,6 +42,7 @@ except Exception as error:
     sys.stderr.write("Warning: Could not open '%s' due %s\n" % (filepath, error))
 
 requirements = [
+    "torch==1.13.1",
     "black",
     "numpy==1.22.0",
     "scipy",
@@ -82,13 +75,11 @@ requirements = [
     "segmentation-models-pytorch==0.3.0",
     "ACSConv==0.1.1",
     "docker",
+    "dicom-anonymizer",
+    "twine",
+    "zarr",
+    "keyring",
 ]
-
-# pytorch doesn't have LTS support on OSX - https://github.com/mlcommons/GaNDLF/issues/389
-if sys.platform == "darwin":
-    requirements.append("torch==1.11.0")
-else:
-    requirements.append("torch==1.11.0")
 
 if __name__ == "__main__":
     setup(
@@ -98,7 +89,7 @@ if __name__ == "__main__":
         author_email="gandlf@mlcommons.org",
         python_requires=">=3.8",
         packages=find_packages(),
-        cmdclass={  # this ensures git_submodule_update is called during install
+        cmdclass={
             "install": CustomInstallCommand,
             "develop": CustomDevelopCommand,
             "egg_info": CustomEggInfoCommand,
@@ -114,6 +105,7 @@ if __name__ == "__main__":
             "gandlf_configGenerator",
             "gandlf_recoverConfig",
             "gandlf_deploy",
+            "gandlf_optimizeModel",
         ],
         classifiers=[
             "Development Status :: 3 - Alpha",
@@ -124,7 +116,7 @@ if __name__ == "__main__":
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",
-            "Topic :: Scientific/Engineering :: Medical Science Apps",
+            "Topic :: Scientific/Engineering :: Medical Science Apps.",
         ],
         description=(
             "PyTorch-based framework that handles segmentation/regression/classification using various DL architectures for medical imaging."
