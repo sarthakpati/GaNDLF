@@ -3,7 +3,7 @@
 {
 	"name": "GaNDLF",
 	"build": {
-		"context": "..",
+		"context": ".",
 		"dockerfile": "../Dockerfile"
 	},
 	
