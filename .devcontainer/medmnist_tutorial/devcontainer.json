@@ -29,10 +29,10 @@
 	// "forwardPorts": [],
 
 	// Install some dependencies on GitHub actions
-	"onCreateCommand": "./onCreateCommand.sh",
+	"onCreateCommand": "./.devcontainer/onCreateCommand.sh",
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "./.devcontainer/postCreateCommand.sh"
+	"postCreateCommand": "./postCreateCommand.sh"
 
 	// Configure tool-specific properties.
 	// "customizations": {},
