@@ -16,4 +16,4 @@ RUN apt-get update && apt-get install ffmpeg libsm6 libxext6 libgl1-mesa-glx -y
 
 RUN ls
 
-COPY .devcontainer/welcome-message.txt /usr/local/etc/vscode-dev-containers/first-run-notice.txt
+COPY `pwd`/welcome-message.txt /usr/local/etc/vscode-dev-containers/first-run-notice.txt
