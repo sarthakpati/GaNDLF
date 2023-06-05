@@ -223,6 +223,39 @@ You can use the following code snippet to run GaNDLF:
 - However, if you are trying to perform inference on full WSIs, `modality` should be kept as `histo`.
 
 
+## Generate Metrics 
+
+GaNDLF provides a script to generate metrics after an inference process is done.The script can be used as follows:
+
+```bash
+# continue from previous shell
+(venv_gandlf) $> python gandlf_generateMetrics \
+  ## -h, --help         show help message and exit
+  ## -v, --version      Show program's version number and exit.
+  -c , --config       The configuration file (contains all the information related to the training/inference session)
+  -i , --inputdata    CSV file that is used to generate the metrics; should contain 3 columns: 'subjectid, prediction, target'
+  -o , --outputfile   Location to save the output dictionary. If not provided, will print to stdout.
+```
+
+Once you have your CSV in the specific format, you can pass it on to generate the metrics. Here is an example for segmentation:
+
+```csv
+SubjectID,Target,Prediction
+001,/path/to/001/target.nii.gz,/path/to/001/prediction.nii.gz
+002,/path/to/002/target.nii.gz,/path/to/001/prediction.nii.gz
+...
+```
+
+Similarly for classification or regression (`A`, `B`, `C`, `D` are integers for classification and floats for regression):
+
+```csv
+SubjectID,Target,Prediction
+001,A,B
+002,C,D
+...
+```
+
+
 ## Parallelize the Training
 
 ### Multi-GPU training
@@ -317,6 +350,8 @@ GaNDLF provides the ability to deploy models into easy-to-share, easy-to-use for
 
 The resulting image contains your specific version of GaNDLF (including any custom changes you have made) and your trained model and configuration. This ensures that upstream changes to GaNDLF will not break compatibility with your model.
 
+Please note that in order to deploy a model, for technical reasons, you need write access to the GaNDLF package. With a virtual environment this should be automatic. See the [installation instructions](./setup.md#installation).
+
 To deploy a model, simply run the `gandlf_deploy` command after training a model. You will need the [Docker engine](https://www.docker.com/get-started/) installed to build Docker images. This will create the image and, for MLCubes, generate an MLCube directory complete with an `mlcube.yaml` specifications file, along with the workspace directory copied from a pre-existing template. 
 
 ```bash
@@ -329,6 +364,8 @@ To deploy a model, simply run the `gandlf_deploy` command after training a model
   --mlcube-root ./my_new_mlcube_dir \ # Directory containing mlcube.yaml (used to configure your image base)
   -o ./output_dir # Output directory where a  new mlcube.yaml file to be distributed with your image will be created
 ```
+
+
 
 
 ## Running with Docker

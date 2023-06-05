@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python3 with a preference for [conda](https://conda.io).
+- Python3 with a preference for [conda](https://conda.io), and python version `3.8` (higher versions *might* work, but they are **untested**).
 - Knowledge of [managing Python environments](https://docs.python.org/3/tutorial/venv.html). The instructions below assume knowledge of the [conda management system](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html).
 
 Alternatively, you can run GaNDLF via [Docker](https://www.docker.com/). This needs different prerequisites. See the [Docker Installation](#docker-installation) section below for more information. 
@@ -22,13 +22,13 @@ Alternatively, you can run GaNDLF via [Docker](https://www.docker.com/). This ne
 
 ### Install PyTorch 
 
-GaNDLF's primary computational foundation is built on PyTorch, and as such it supports all hardware types that PyTorch supports. Please install PyTorch for your hardware type before installing GaNDLF. See the [PyTorch installation instructions](https://pytorch.org/get-started/locally) for more details. An example installation using CUDA, ROCm, and CPU-only is shown below:
+GaNDLF's primary computational foundation is built on PyTorch, and as such it supports all hardware types that PyTorch supports. Please install PyTorch for your hardware type before installing GaNDLF. See the [PyTorch installation instructions](https://pytorch.org/get-started/previous-versions/#v1131) for more details. An example installation using CUDA, ROCm, and CPU-only is shown below:
 
 ```bash
 (base) $> conda create -n venv_gandlf python=3.8 -y
 (base) $> conda activate venv_gandlf
 (venv_gandlf) $> ### subsequent commands go here
-### PyTorch installation - https://pytorch.org/get-started/locally
+### PyTorch installation - https://pytorch.org/get-started/previous-versions/#v1131
 ## CUDA 11.6
 # (venv_gandlf) $> pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu116
 ## ROCm

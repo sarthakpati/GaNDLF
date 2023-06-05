@@ -4,7 +4,13 @@ from pathlib import Path
 from GANDLF.training_manager import TrainingManager, TrainingManager_split
 from GANDLF.inference_manager import InferenceManager
 from GANDLF.parseConfig import parseConfig
-from GANDLF.utils import populate_header_in_parameters, parseTrainingCSV, parseTestingCSV
+from GANDLF.utils import (
+    populate_header_in_parameters,
+    parseTrainingCSV,
+    parseTestingCSV,
+    set_determinism,
+)
+
 
 def main_run(
     data_csv, config_file, model_dir, train_mode, device, resume, reset, output_dir=None
@@ -30,11 +36,13 @@ def main_run(
     device = device
     parameters = parseConfig(model_parameters)
     parameters["device_id"] = -1
+    if parameters["determinism"]:
+        set_determinism(42)
     # in case the data being passed is already processed, check if the previous parameters exists,
     # and if it does, compare the two and if they are the same, ensure no preprocess is done.
     model_parameters_prev = os.path.join(os.path.dirname(model_dir), "parameters.pkl")
     if train_mode:
-        if not (reset) or not (resume):
+        if resume:
             print(
                 "Trying to resume training without changing any parameters from previous run.",
                 flush=True,

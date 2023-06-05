@@ -1,11 +1,11 @@
 #!usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function, division
 import os
 import argparse
 import ast
 import sys
+import traceback
 
 from GANDLF import version
 from GANDLF.cli import main_run, copyrightMessage
@@ -136,7 +136,7 @@ if __name__ == "__main__":
             args.reset,
             args.outputdir,
         )
-    except Exception as e:
-        sys.exit("Error in GANDLF run:", e)
+    except Exception:
+        sys.exit("ERROR: " + traceback.format_exc())
 
     print("Finished.")

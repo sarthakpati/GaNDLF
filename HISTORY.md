@@ -1,3 +1,6 @@
+## 0.0.17
+- Added a CLI for metrics computation
+
 ## 0.0.16
 - Added a script "gandlf_deploy", allowing deployment of models into MLCubes (currently requires Docker)
 - ImageNet pre-trained models for UNet with variable encoders is now available
@@ -12,6 +15,7 @@
 - Added CI and documentation for OpenFL integration
 - Added getting started guide
 - Added documentation for all loss functions and updated guideline
+- Added ability to save resized images instead of loading them directly
 
 ## 0.0.15
 - Updated `setup.py` for `python>=3.8`

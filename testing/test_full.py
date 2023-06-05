@@ -30,6 +30,7 @@ from GANDLF.cli import (
     run_deployment,
     recover_config,
     post_training_model_optimization,
+    generate_metrics_dict,
 )
 from GANDLF.schedulers import global_schedulers_dict
 from GANDLF.optimizers import global_optimizer_dict
@@ -252,6 +253,7 @@ def test_train_segmentation_rad_2d(device):
     for model in all_models_segmentation:
         if model == "imagenet_unet":
             # imagenet_unet encoder needs to be toned down for small patch size
+            parameters["model"]["encoder_name"] = "mit_b0"
             parameters["model"]["encoder_depth"] = 3
             parameters["model"]["decoder_channels"] = (64, 32, 16)
             parameters["model"]["final_layer"] = random.choice(
@@ -338,6 +340,11 @@ def test_train_segmentation_rad_3d(device):
     for model in all_models_segmentation:
         if model == "imagenet_unet":
             # imagenet_unet encoder needs to be toned down for small patch size
+            parameters["model"]["encoder_name"] = "mit_b0"
+            with pytest.raises(Exception) as exc_info:
+                _ = global_models_dict[model](parameters)
+            print("Exception raised:", exc_info.value)
+            parameters["model"]["encoder_name"] = "resnet34"
             parameters["model"]["encoder_depth"] = 3
             parameters["model"]["decoder_channels"] = (64, 32, 16)
             parameters["model"]["final_layer"] = random.choice(
@@ -1132,6 +1139,12 @@ def test_train_metrics_segmentation_rad_2d(device):
         "hausdorff",
         "hausdorff95",
         "normalized_surface_dice",
+        "sensitivity",
+        "sensitivity_per_label",
+        "specificity_segmentation",
+        "specificity_segmentation_per_label",
+        "jaccard",
+        "jaccard_per_label",
     ]
     parameters["model"]["architecture"] = "resunet"
     parameters["model"]["onnx_export"] = False
@@ -1524,6 +1537,7 @@ def test_dataloader_construction_train_segmentation_3d(device):
     parameters["model"]["print_summary"] = False
     parameters["data_postprocessing"]["mapping"] = {0: 0, 1: 1}
     parameters["data_postprocessing"]["fill_holes"] = True
+    parameters["data_postprocessing"]["cca"] = True
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
     # loop through selected models and train for single epoch
     sanitize_outputDir()
@@ -1547,11 +1561,13 @@ def test_generic_preprocess_functions():
     # checking tensor with last dimension of size 1
     input_tensor = torch.rand(4, 256, 256, 1)
     input_transformed = global_preprocessing_dict["rgba2rgb"]()(input_tensor)
-    assert input_transformed.shape[1] == 3, "Number of channels is not 3"
+    assert input_transformed.shape[0] == 3, "Number of channels is not 3"
+    assert input_transformed.shape[1:] == input_tensor.shape[1:], "Shape mismatch"
 
     input_tensor = torch.rand(3, 256, 256, 1)
     input_transformed = global_preprocessing_dict["rgb2rgba"]()(input_tensor)
-    assert input_transformed.shape[1] == 4, "Number of channels is not 4"
+    assert input_transformed.shape[0] == 4, "Number of channels is not 4"
+    assert input_transformed.shape[1:] == input_tensor.shape[1:], "Shape mismatch"
 
     input_tensor = 2 * torch.rand(3, 256, 256, 1) - 1
     input_transformed = global_preprocessing_dict["normalize_div_by_255"](input_tensor)
@@ -1748,6 +1764,19 @@ def test_generic_preprocess_functions():
     temp_filename_tiff = convert_to_tiff(temp_filename, outputDir)
     assert os.path.exists(temp_filename_tiff), "Tiff file should be created"
 
+    # resize tests
+    input_tensor = np.random.randint(0, 255, size=(20, 20, 20))
+    input_image = sitk.GetImageFromArray(input_tensor)
+    expected_output = (10, 10, 10)
+    input_transformed = resize_image(input_image, expected_output)
+    assert input_transformed.GetSize() == expected_output, "Resize should work"
+    input_tensor = np.random.randint(0, 255, size=(20, 20))
+    input_image = sitk.GetImageFromArray(input_tensor)
+    expected_output = [10, 10]
+    output_size_dict = {"resize": expected_output}
+    input_transformed = resize_image(input_image, output_size_dict)
+    assert list(input_transformed.GetSize()) == expected_output, "Resize should work"
+
     sanitize_outputDir()
 
     print("passed")
@@ -1829,6 +1858,12 @@ def test_train_checkpointing_segmentation_rad_2d(device):
         "hd100_per_label",
         "normalized_surface_dice",
         "normalized_surface_dice_per_label",
+        "sensitivity",
+        "sensitivity_per_label",
+        "specificity_segmentation",
+        "specificity_segmentation_per_label",
+        "jaccard",
+        "jaccard_per_label",
     ]
     parameters["model"]["architecture"] = "unet"
     parameters["model"]["onnx_export"] = False
@@ -1877,11 +1912,7 @@ def test_generic_model_patch_divisibility():
     parameters["model"]["amp"] = True
     parameters["model"]["print_summary"] = False
     parameters["model"]["num_channels"] = 3
-    parameters["metrics"] = [
-        "dice",
-        "hausdorff",
-        "hausdorff95" "normalized_surface_dice_per_label",
-    ]
+    parameters["metrics"] = ["dice"]
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
 
     # this assertion should fail
@@ -2831,6 +2862,7 @@ def test_generic_deploy_docker():
     parameters["model"]["onnx_export"] = False
     parameters["model"]["print_summary"] = False
     parameters["data_preprocessing"]["resize_image"] = [224, 224]
+    parameters["memory_save_mode"] = True
 
     parameters = populate_header_in_parameters(parameters, parameters["headers"])
     sanitize_outputDir()
@@ -2909,3 +2941,74 @@ def test_collision_subjectid_test_segmentation_rad_2d(device):
     sanitize_outputDir()
 
     print("passed")
+
+
+def test_generic_random_numbers_are_deterministic_on_cpu():
+    print("48: Starting testing deterministic random numbers generation")
+
+    set_determinism(seed=42)
+    a, b = np.random.rand(3, 3), np.random.rand(3, 3)
+
+    set_determinism(seed=42)
+    c, d = np.random.rand(3, 3), np.random.rand(3, 3)
+
+    # Check that the generated random numbers are the same with numpy
+    assert np.allclose(a, c)
+    assert np.allclose(b, d)
+
+    e, f = [random.random() for _ in range(5)], [random.random() for _ in range(5)]
+
+    set_determinism(seed=42)
+    g, h = [random.random() for _ in range(5)], [random.random() for _ in range(5)]
+
+    # Check that the generated random numbers are the same with Python's built-in random module
+    assert e == g
+    assert f == h
+
+    print("passed")
+
+
+def test_generic_cli_function_metrics_cli_rad_nd():
+    print("49: Starting metric calculation tests")
+    for dim in ["2d", "3d"]:
+        for problem_type in ["segmentation", "classification"]:
+            # read and parse csv
+            training_data, _ = parseTrainingCSV(
+                inputDir + f"/train_{dim}_rad_{problem_type}.csv"
+            )
+            if problem_type == "segmentation":
+                labels_array = training_data["Label"]
+            else:
+                labels_array = training_data["ValueToPredict"]
+            training_data["target"] = labels_array
+            training_data["prediction"] = labels_array
+
+            # read and initialize parameters for specific data dimension
+            parameters = parseConfig(
+                testingDir + f"/config_{problem_type}.yaml", version_check_flag=False
+            )
+            parameters["modality"] = "rad"
+            parameters["patch_size"] = patch_size["2D"]
+            parameters["model"]["dimension"] = 2
+            if dim == "3d":
+                parameters["patch_size"] = patch_size["3D"]
+                parameters["model"]["dimension"] = 3
+
+            parameters["verbose"] = False
+
+            temp_infer_csv = os.path.join(outputDir, "temp_csv.csv")
+            training_data.to_csv(temp_infer_csv, index=False)
+
+            output_file = os.path.join(outputDir, "output.yaml")
+            training_data.to_csv(temp_infer_csv, index=False)
+
+            temp_config = get_temp_config_path()
+            with open(temp_config, "w") as file:
+                yaml.dump(parameters, file)
+
+            # run the metrics calculation
+            generate_metrics_dict(temp_infer_csv, temp_config, output_file)
+
+            assert os.path.isfile(output_file), "Metrics output file was not generated"
+
+            sanitize_outputDir()

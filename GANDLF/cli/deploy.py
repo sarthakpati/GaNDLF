@@ -4,6 +4,7 @@ import yaml
 import docker
 import tarfile
 import io
+import sysconfig
 
 # import copy
 
@@ -70,23 +71,29 @@ def deploy_docker_mlcube(modeldir, config, outputdir, mlcubedir, requires_gpu):
     docker_client = docker.from_env()
     print("Connected to the docker service.")
 
-    mlcube_config_file = mlcubedir + "/mlcube.yaml"
+    mlcube_config_file = os.path.join(mlcubedir, "mlcube.yaml")
     assert os.path.exists(mlcubedir) and os.path.exists(
         mlcube_config_file
     ), "MLCube Directory: This does not appear to be a valid MLCube directory."
 
-    os.makedirs(outputdir + "/workspace", exist_ok=True)
-    shutil.copytree(
-        mlcubedir + "/workspace", outputdir + "/workspace", dirs_exist_ok=True
-    )
-    shutil.copyfile(config, outputdir + "/workspace/config.yml")
+    output_workspace_folder = os.path.join(outputdir, "workspace")
+    mlcube_workspace_folder = os.path.join(mlcubedir, "workspace")
+
+    os.makedirs(output_workspace_folder, exist_ok=True)
+    if os.path.exists(mlcube_workspace_folder):
+        shutil.copytree(
+            mlcube_workspace_folder,
+            output_workspace_folder,
+            dirs_exist_ok=True,
+        )
+    shutil.copyfile(config, os.path.join(output_workspace_folder, "config.yml"))
 
     # First grab the existing the mlcube config then modify for the embedded-model image.
     mlcube_config = None
     with open(mlcube_config_file, "r") as f:
         mlcube_config = yaml.safe_load(f)
 
-    output_mlcube_config_path = outputdir + "/mlcube.yaml"
+    output_mlcube_config_path = os.path.join(outputdir, "mlcube.yaml")
 
     old_train_output_modeldir = mlcube_config["tasks"]["train"]["parameters"][
         "outputs"
@@ -151,6 +158,37 @@ def deploy_docker_mlcube(modeldir, config, outputdir, mlcubedir, requires_gpu):
 
     # Run the mlcube_docker configuration process, forcing build from local repo
     gandlf_root = os.path.realpath(os.path.dirname(__file__) + "/../../")
+    site_packages_dir = sysconfig.get_path("purelib")
+    symlink_location = ""
+    if (
+        gandlf_root == site_packages_dir
+    ):  # Installed via pip, not as editable source install, extra work is needed
+        setup_files = ["setup.py", ".dockerignore", "pyproject.toml", "MANIFEST.in"]
+        dockerfiles = [
+            item
+            for item in os.listdir(gandlf_root)
+            if os.path.isfile(os.path.join(gandlf_root, item))
+            and item.startswith("Dockerfile-")
+        ]
+        entrypoints = [
+            item
+            for item in os.listdir(gandlf_root)
+            if os.path.isfile(os.path.join(gandlf_root, item))
+            and item.startswith("gandlf_")
+        ]
+        for file in setup_files + dockerfiles + entrypoints:
+            shutil.copy(
+                os.path.join(gandlf_root, file),
+                os.path.join(gandlf_root, "GANDLF", file),
+            )
+        if not os.path.exists(os.path.join(gandlf_root, "GANDLF", "GANDLF")):
+            # point to same package directory, acts as a recursive location for the GaNDLF package
+            symlink_location = os.path.join(gandlf_root, "GANDLF", "GANDLF")
+            os.symlink("./", os.path.join(gandlf_root, "GANDLF", "GANDLF"))
+        gandlf_root = os.path.join(gandlf_root, "GANDLF")
+
+    print(os.listdir(gandlf_root))
+
     # Requires mlcube_docker python package to be installed with scripts available
     # command_to_run = "mlcube_docker configure --platform=docker  -Pdocker.build_strategy=always" + " --mlcube=" + os.path.realpath(mlcubedir) + " -Pdocker.build_context=" + gandlf_root
     command_to_run = (
@@ -170,6 +208,10 @@ def deploy_docker_mlcube(modeldir, config, outputdir, mlcubedir, requires_gpu):
     assert (
         os.system(command_to_run) == 0
     ), "mlcube_docker configuration failed. Check output for more details."
+
+    # Container is made at this point, the recursive symlink no longer needs to exist
+    if os.path.exists(symlink_location) and os.path.islink(symlink_location):
+        os.unlink(symlink_location)
 
     # If mlcube_docker configuration worked, the image is now present in Docker so we can manipulate it.
     container = docker_client.containers.create(docker_image)
