@@ -25,6 +25,7 @@ from .tensor import (
     get_output_from_calculator,
     get_tensor_from_image,
     get_image_from_tensor,
+    update_step_for_hpu,
 )
 
 from .write_parse import (

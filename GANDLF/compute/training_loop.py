@@ -22,6 +22,7 @@ from GANDLF.utils import (
     get_ground_truths_and_predictions_tensor,
     get_model_dict,
     print_and_format_metrics,
+    update_step_for_hpu,
 )
 from GANDLF.metrics import overall_stats
 from GANDLF.logger import Logger
@@ -150,6 +151,8 @@ def train_network(model, train_dataloader, optimizer, params):
         else:
             if not nan_loss:
                 loss.backward(create_graph=second_order)
+                update_step_for_hpu(params)
+
                 if params["clip_grad"] is not None:
                     dispatch_clip_grad_(
                         parameters=model_parameters_exclude_head(
@@ -159,6 +162,7 @@ def train_network(model, train_dataloader, optimizer, params):
                         mode=params["clip_mode"],
                     )
                 optimizer.step()
+                update_step_for_hpu(params)
 
         # Non network training related
         if not nan_loss:

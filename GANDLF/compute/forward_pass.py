@@ -17,6 +17,7 @@ from GANDLF.utils import (
     reverse_one_hot,
     get_ground_truths_and_predictions_tensor,
     print_and_format_metrics,
+    update_step_for_hpu,
 )
 from GANDLF.metrics import overall_stats
 from tqdm import tqdm
@@ -205,6 +206,7 @@ def validate_network(
             final_loss, final_metric = get_loss_and_metrics(
                 image, valuesToPredict, pred_output, params
             )
+            update_step_for_hpu(params)
 
             if calculate_overall_metrics:
                 predictions_array[batch_idx] = (
@@ -436,6 +438,9 @@ def validate_network(
                     output_prediction.to(torch.float32),
                     params,
                 )
+
+                update_step_for_hpu(params)
+
                 if params["verbose"]:
                     print(
                         "Full image " + mode + ":: Loss: ",
@@ -518,6 +523,7 @@ def validate_network(
             scheduler.step(average_epoch_valid_loss)
         else:
             scheduler.step()
+        update_step_for_hpu(params)
 
     # write the predictions, if appropriate
     if params["save_output"]:
