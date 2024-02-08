@@ -1,5 +1,8 @@
 import os, sys
+from typing import Union
+from pandas.util import hash_pandas_object
 import numpy as np
+import SimpleITK as sitk
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -341,7 +344,8 @@ def get_class_imbalance_weights_classification(training_df, params):
     for i in range(params["model"]["num_classes"]):
         penalty_dict[i] /= penalty_sum
 
-    return penalty_dict, weight_dict
+    # passing None for sampling_weights because there is no clear way to calculate this for classification tasks which do not have a label
+    return penalty_dict, None, weight_dict
 
 
 def get_class_imbalance_weights_segmentation(training_data_loader, parameters):
@@ -407,7 +411,7 @@ def get_class_imbalance_weights_segmentation(training_data_loader, parameters):
         for key, val in penalty.items()
     }
 
-    return penalty_dict, weights_dict
+    return penalty_dict, penalty_dict, weights_dict
 
 
 def get_class_imbalance_weights(training_df, params):
@@ -421,40 +425,66 @@ def get_class_imbalance_weights(training_df, params):
     Returns:
         float, float: The penalty and class weights for different classes under consideration for classification.
     """
-    penalty_weights, class_weights = None, None
-    if params["weighted_loss"]:
-        print("Calculating weights")
-        # if params["weighted_loss"][weights] is None # You can get weights from the user here, might need some playing with class_list to do later
-        if params["problem_type"] == "classification":
-            (
-                penalty_weights,
-                class_weights,
-            ) = get_class_imbalance_weights_classification(training_df, params)
-        elif params["problem_type"] == "segmentation":
-            # Set up the dataloader for penalty calculation
-            from GANDLF.data.ImagesFromDataFrame import ImagesFromDataFrame
-
-            penalty_data = ImagesFromDataFrame(
-                training_df,
-                parameters=params,
-                train=False,
-                loader_type="penalty",
+    penalty_weights, sampling_weights, class_weights = None, None, None
+    if params["weighted_loss"] or params["patch_sampler"]["biased_sampling"]:
+        (penalty_weights, sampling_weights, class_weights) = (
+            params.get("penalty_weights", None),
+            params.get("sampling_weights", None),
+            params.get("class_weights", None),
+        )
+        # this default is needed for openfl
+        params["previous_parameters"] = params.get("previous_parameters", None)
+        if params["previous_parameters"] is not None:
+            previous_training_hash = params["previous_parameters"]["training_data_hash"]
+            current_training_data_hash = params.get(
+                "training_data_hash", hash_pandas_object(training_df).sum()
+            )
+            # compare the previous and current training data hashes, and reset the weights if the training data has changed
+            penalty_weights = (
+                None
+                if previous_training_hash != current_training_data_hash
+                else penalty_weights
             )
 
-            penalty_loader = DataLoader(
-                penalty_data,
-                batch_size=1,
-                shuffle=True,
-                pin_memory=False,
-            )
+        # calculate the penalty/sampling weights only if one of the following conditions are met
+        if (params["weighted_loss"] and (penalty_weights is None)) or (
+            params["patch_sampler"]["biased_sampling"] and (sampling_weights is None)
+        ):
+            print("Calculating weights")
+            if params["problem_type"] == "classification":
+                (
+                    penalty_weights,
+                    sampling_weights,
+                    class_weights,
+                ) = get_class_imbalance_weights_classification(training_df, params)
+            elif params["problem_type"] == "segmentation":
+                # Set up the dataloader for penalty calculation
+                from GANDLF.data.ImagesFromDataFrame import ImagesFromDataFrame
 
-            (
-                penalty_weights,
-                class_weights,
-            ) = get_class_imbalance_weights_segmentation(penalty_loader, params)
-            del penalty_data, penalty_loader
+                penalty_data = ImagesFromDataFrame(
+                    training_df,
+                    parameters=params,
+                    train=False,
+                    loader_type="penalty",
+                )
 
-    return penalty_weights, class_weights
+                penalty_loader = DataLoader(
+                    penalty_data,
+                    batch_size=1,
+                    shuffle=True,
+                    pin_memory=False,
+                )
+
+                (
+                    penalty_weights,
+                    sampling_weights,
+                    class_weights,
+                ) = get_class_imbalance_weights_segmentation(penalty_loader, params)
+                del penalty_data, penalty_loader
+        else:
+            print("Using weights from config file")
+
+    return penalty_weights, sampling_weights, class_weights
 
 
 def get_linear_interpolation_mode(dimensionality):
@@ -555,6 +585,42 @@ def get_output_from_calculator(predictions, ground_truth, calculator):
     else:
         temp_output = temp_output.cpu().item()
     return temp_output
+
+
+
+def get_tensor_from_image(input_image: Union[sitk.Image, str]) -> torch.Tensor:
+    """
+    This function converts a sitk image to a torch tensor.
+
+    Args:
+        input_image (sitk.Image): The input image.
+
+    Returns:
+        torch.Tensor: The converted torch tensor.
+    """
+    input_image = (
+        sitk.ReadImage(input_image) if isinstance(input_image, str) else input_image
+    )
+    return torch.from_numpy(sitk.GetArrayFromImage(input_image))
+
+
+def get_image_from_tensor(input_tensor: torch.Tensor) -> sitk.Image:
+    """
+    This function converts a torch tensor to a sitk image.
+
+    Args:
+        input_tensor (torch.Tensor): The input tensor.
+
+    Returns:
+        sitk.Image: The converted sitk image.
+    """
+    arr = input_tensor.cpu().numpy()
+    return_image = sitk.GetImageFromArray(arr)
+    # this is specifically the case for 3D images
+    if (arr.shape[0] == 1) and (arr.shape[1] > 3):
+        return_image = sitk.GetImageFromArray(arr[0])
+
+    return return_image
 
 
 def update_step_for_hpu(parameters):

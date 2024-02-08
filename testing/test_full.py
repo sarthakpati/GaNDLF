@@ -1,5 +1,5 @@
 from pathlib import Path
-import requests, zipfile, io, os, csv, random, copy, shutil, yaml, torch, pytest
+import gdown, zipfile, os, csv, random, copy, shutil, yaml, torch, pytest
 import SimpleITK as sitk
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ import cv2
 
 from GANDLF.data.ImagesFromDataFrame import ImagesFromDataFrame
 from GANDLF.utils import *
-from GANDLF.utils import parseTestingCSV
+from GANDLF.utils import parseTestingCSV, get_tensor_from_image
 from GANDLF.data.preprocessing import global_preprocessing_dict
 from GANDLF.data.augmentation import global_augs_dict
 from GANDLF.data.patch_miner.opm.utils import (
@@ -19,6 +19,7 @@ from GANDLF.data.patch_miner.opm.utils import (
     get_patch_size_in_microns,
     convert_to_tiff,
 )
+from GANDLF.config_manager import ConfigManager
 from GANDLF.parseConfig import parseConfig
 from GANDLF.training_manager import TrainingManager
 from GANDLF.inference_manager import InferenceManager
@@ -109,9 +110,7 @@ steps to follow to write tests:
 
 def test_generic_download_data():
     print("00: Downloading the sample data")
-    urlToDownload = (
-        "https://upenn.box.com/shared/static/y8162xkq1zz5555ye3pwadry2m2e39bs.zip"
-    )
+    urlToDownload = "https://drive.google.com/uc?id=1c4Yrv-jnK6Tk7Ne1HmMTChv-4nYk43NT"
 
     files_check = [
         os.path.join(inputDir, "2d_histo_segmentation", "1", "image.tiff"),
@@ -122,11 +121,12 @@ def test_generic_download_data():
     for file in files_check:
         if not os.path.isfile(file):
             print("Downloading and extracting sample data")
-            r = requests.get(urlToDownload)
-            z = zipfile.ZipFile(io.BytesIO(r.content))
-            z.extractall(testingDir)
+            output = os.path.join(testingDir, "gandlf_unit_test_data.tgz")
+            gdown.download(urlToDownload, output, quiet=False, verify=True)
+            with zipfile.ZipFile(output, "r") as zip_ref:
+                zip_ref.extractall(testingDir)
+            os.remove(output)
             break
-
     sanitize_outputDir()
 
     print("passed")
@@ -183,7 +183,9 @@ def test_generic_constructTrainingCSV():
         with open(
             inputDir + "/train_" + application_data + ".csv", "r"
         ) as read_f, open(
-            inputDir + "/train_" + application_data_regression + ".csv", "w", newline=""
+            inputDir + "/train_" + application_data_regression + ".csv",
+            "w",
+            newline="",
         ) as write_reg, open(
             inputDir + "/train_" + application_data_classification + ".csv",
             "w",
@@ -210,7 +212,7 @@ def test_generic_constructTrainingCSV():
                 i += 1
 
 
-# these are helper functions to be used in other tests
+# # these are helper functions to be used in other tests
 def sanitize_outputDir():
     print("02_1: Sanitizing outputDir")
     if os.path.isdir(outputDir):
@@ -218,16 +220,19 @@ def sanitize_outputDir():
     Path(outputDir).mkdir(parents=True, exist_ok=True)
 
 
-def get_temp_config_path():
+def write_temp_config_path(parameters_to_write):
     print("02_2: Creating path for temporary config file")
     temp_config_path = os.path.join(outputDir, "config_temp.yaml")
     # if found in previous run, discard.
     if os.path.exists(temp_config_path):
         os.remove(temp_config_path)
+    if parameters_to_write is not None:
+        with open(temp_config_path, "w") as file:
+            yaml.dump(parameters_to_write, file)
     return temp_config_path
 
 
-# these are helper functions to be used in other tests
+# # these are helper functions to be used in other tests
 
 
 def test_train_segmentation_rad_2d(device):
@@ -283,7 +288,7 @@ def test_train_segmentation_rad_2d(device):
 def test_train_segmentation_sdnet_rad_2d(device):
     print("04: Starting 2D Rad segmentation tests")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -319,7 +324,7 @@ def test_train_segmentation_rad_3d(device):
     print("05: Starting 3D Rad segmentation tests")
     # read and parse csv
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -374,7 +379,7 @@ def test_train_segmentation_rad_3d(device):
 def test_train_regression_rad_2d(device):
     print("06: Starting 2D Rad regression tests")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_regression.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -415,7 +420,7 @@ def test_train_regression_rad_2d_imagenet(device):
     print("07: Starting 2D Rad regression tests for imagenet models")
     # read and initialize parameters for specific data dimension
     print("Starting 2D Rad regression tests for imagenet models")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_regression.yaml", version_check_flag=False
     )
     parameters["patch_size"] = patch_size["2D"]
@@ -453,7 +458,7 @@ def test_train_regression_rad_2d_imagenet(device):
 def test_train_regression_brainage_rad_2d(device):
     print("08: Starting brain age tests")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_regression.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -482,11 +487,10 @@ def test_train_regression_brainage_rad_2d(device):
         reset=True,
     )
 
-    file_config_temp = get_temp_config_path()
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters_temp, file)
+    # file_config_temp = write_temp_config_path(parameters_temp)
     model_path = os.path.join(outputDir, "brain_age_best.pth.tar")
-    optimization_result = post_training_model_optimization(model_path, file_config_temp)
+    config_path = os.path.join(outputDir, "parameters.pkl")
+    optimization_result = post_training_model_optimization(model_path, config_path)
     assert optimization_result == False, "Optimization should fail"
 
     sanitize_outputDir()
@@ -497,7 +501,7 @@ def test_train_regression_brainage_rad_2d(device):
 def test_train_regression_rad_3d(device):
     print("09: Starting 3D Rad regression tests")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_regression.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -547,7 +551,7 @@ def test_train_regression_rad_3d(device):
 def test_train_classification_rad_2d(device):
     print("10: Starting 2D Rad classification tests")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -608,7 +612,7 @@ def test_train_classification_rad_2d(device):
 def test_train_classification_rad_3d(device):
     print("11: Starting 3D Rad classification tests")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -659,7 +663,7 @@ def test_train_classification_rad_3d(device):
 def test_train_resume_inference_classification_rad_3d(device):
     print("12: Starting 3D Rad classification tests for resume and reset")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -728,7 +732,7 @@ def test_train_resume_inference_classification_rad_3d(device):
 def test_train_inference_optimize_classification_rad_3d(device):
     print("13: Starting 3D Rad segmentation tests for optimization")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -754,12 +758,10 @@ def test_train_inference_optimize_classification_rad_3d(device):
         reset=True,
     )
 
-    file_config_temp = get_temp_config_path()
-    parameters_temp["model"]["onnx_export"] = True
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters_temp, file)
+    # file_config_temp = write_temp_config_path(parameters_temp)
     model_path = os.path.join(outputDir, all_models_regression[0] + "_best.pth.tar")
-    optimization_result = post_training_model_optimization(model_path, file_config_temp)
+    config_path = os.path.join(outputDir, "parameters.pkl")
+    optimization_result = post_training_model_optimization(model_path, config_path)
     assert optimization_result == True, "Optimization should pass"
 
     ## testing inference
@@ -781,7 +783,7 @@ def test_train_inference_optimize_classification_rad_3d(device):
 def test_train_inference_optimize_segmentation_rad_2d(device):
     print("14: Starting 2D Rad segmentation tests for optimization")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -828,7 +830,7 @@ def test_train_inference_optimize_segmentation_rad_2d(device):
 def test_train_inference_classification_with_logits_single_fold_rad_3d(device):
     print("15: Starting 3D Rad classification tests for single fold logits inference")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -862,7 +864,7 @@ def test_train_inference_classification_with_logits_single_fold_rad_3d(device):
     temp_infer_csv = os.path.join(outputDir, "temp_infer_csv.csv")
     training_data.to_csv(temp_infer_csv, index=False)
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(temp_infer_csv)
@@ -893,7 +895,7 @@ def test_train_inference_classification_with_logits_single_fold_rad_3d(device):
 def test_train_inference_classification_with_logits_multiple_folds_rad_3d(device):
     print("16: Starting 3D Rad classification tests for multi-fold logits inference")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -940,8 +942,9 @@ def test_train_scheduler_classification_rad_2d(device):
     # read and initialize parameters for specific data dimension
     # loop through selected models and train for single epoch
     for scheduler in global_schedulers_dict:
-        parameters = parseConfig(
-            testingDir + "/config_classification.yaml", version_check_flag=False
+        parameters = ConfigManager(
+            testingDir + "/config_classification.yaml",
+            version_check_flag=False,
         )
         parameters["modality"] = "rad"
         parameters["patch_size"] = patch_size["2D"]
@@ -962,12 +965,9 @@ def test_train_scheduler_classification_rad_2d(device):
         parameters["nested_training"]["validation"] = -5
         sanitize_outputDir()
         ## ensure parameters are parsed every single time
-        file_config_temp = get_temp_config_path()
+        file_config_temp = write_temp_config_path(parameters)
 
-        with open(file_config_temp, "w") as file:
-            yaml.dump(parameters, file)
-
-        parameters = parseConfig(file_config_temp, version_check_flag=False)
+        parameters = ConfigManager(file_config_temp, version_check_flag=False)
         TrainingManager(
             dataframe=training_data,
             outputDir=outputDir,
@@ -985,7 +985,7 @@ def test_train_scheduler_classification_rad_2d(device):
 def test_train_optimizer_classification_rad_2d(device):
     print("18: Starting 2D Rad classification tests for optimizer")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -1027,7 +1027,7 @@ def test_train_optimizer_classification_rad_2d(device):
 def test_clip_train_classification_rad_3d(device):
     print("19: Starting 3D Rad classification tests for clipping")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -1067,7 +1067,7 @@ def test_train_normtype_segmentation_rad_3d(device):
     # read and initialize parameters for specific data dimension
     # read and parse csv
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -1088,11 +1088,9 @@ def test_train_normtype_segmentation_rad_3d(device):
     # these should raise exceptions
     for norm_type in ["none", None]:
         parameters["model"]["norm_type"] = norm_type
-        file_config_temp = get_temp_config_path()
-        with open(file_config_temp, "w") as file:
-            yaml.dump(parameters, file)
+        file_config_temp = write_temp_config_path(parameters)
         with pytest.raises(Exception) as exc_info:
-            parameters = parseConfig(file_config_temp, version_check_flag=False)
+            parameters = ConfigManager(file_config_temp, version_check_flag=False)
 
         print("Exception raised:", exc_info.value)
 
@@ -1123,7 +1121,7 @@ def test_train_normtype_segmentation_rad_3d(device):
 def test_train_metrics_segmentation_rad_2d(device):
     print("21: Starting 2D Rad segmentation tests for metrics")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -1149,12 +1147,9 @@ def test_train_metrics_segmentation_rad_2d(device):
     parameters["model"]["architecture"] = "resunet"
     parameters["model"]["onnx_export"] = False
     parameters["model"]["print_summary"] = False
-    file_config_temp = get_temp_config_path()
+    file_config_temp = write_temp_config_path(parameters)
 
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters, file)
-
-    parameters = parseConfig(file_config_temp, version_check_flag=False)
+    parameters = ConfigManager(file_config_temp, version_check_flag=False)
     training_data, parameters["headers"] = parseTrainingCSV(
         inputDir + "/train_2d_rad_segmentation.csv"
     )
@@ -1177,7 +1172,7 @@ def test_train_metrics_segmentation_rad_2d(device):
 def test_train_metrics_regression_rad_2d(device):
     print("22: Starting 2D Rad regression tests for metrics")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_regression.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -1211,30 +1206,48 @@ def test_train_metrics_regression_rad_2d(device):
 
 def test_train_losses_segmentation_rad_2d(device):
     print("23: Starting 2D Rad segmentation tests for losses")
-    # read and parse csv
-    parameters = parseConfig(
-        testingDir + "/config_segmentation.yaml", version_check_flag=False
-    )
-    training_data, parameters["headers"] = parseTrainingCSV(
-        inputDir + "/train_2d_rad_segmentation.csv"
-    )
-    parameters["modality"] = "rad"
-    parameters["patch_size"] = patch_size["2D"]
-    parameters["model"]["dimension"] = 2
-    parameters["model"]["class_list"] = [0, 255]
-    # disabling amp because some losses do not support Half, yet
-    parameters["model"]["amp"] = False
-    parameters["model"]["num_channels"] = 3
-    parameters["model"]["architecture"] = "resunet"
-    parameters["metrics"] = ["dice"]
-    parameters["model"]["onnx_export"] = False
-    parameters["model"]["print_summary"] = False
-    parameters = populate_header_in_parameters(parameters, parameters["headers"])
-    # loop through selected models and train for single epoch
-    for loss_type in ["dc", "dc_log", "dcce", "dcce_logits", "tversky"]:
+
+    # healper function to read and parse yaml and return parameters
+    def get_parameters_after_alteration(loss_type: str) -> dict:
+        parameters = ConfigManager(
+            testingDir + "/config_segmentation.yaml", version_check_flag=False
+        )
         parameters["loss_function"] = loss_type
+        file_config_temp = write_temp_config_path(parameters)
+        # read and parse csv
+        parameters = ConfigManager(file_config_temp, version_check_flag=True)
         parameters["nested_training"]["testing"] = -5
         parameters["nested_training"]["validation"] = -5
+        training_data, parameters["headers"] = parseTrainingCSV(
+            inputDir + "/train_2d_rad_segmentation.csv"
+        )
+        parameters["modality"] = "rad"
+        parameters["patch_size"] = patch_size["2D"]
+        parameters["model"]["dimension"] = 2
+        parameters["model"]["class_list"] = [0, 255]
+        # disabling amp because some losses do not support Half, yet
+        parameters["model"]["amp"] = False
+        parameters["model"]["num_channels"] = 3
+        parameters["model"]["architecture"] = "resunet"
+        parameters["metrics"] = ["dice"]
+        parameters["model"]["onnx_export"] = False
+        parameters["model"]["print_summary"] = False
+        parameters = populate_header_in_parameters(parameters, parameters["headers"])
+        return parameters, training_data
+
+    # loop through selected models and train for single epoch
+    for loss_type in [
+        "dc",
+        "dc_log",
+        "dcce",
+        "dcce_logits",
+        "tversky",
+        "focal",
+        "dc_focal",
+        "mcc",
+        "mcc_log",
+    ]:
+        parameters, training_data = get_parameters_after_alteration(loss_type)
         sanitize_outputDir()
         TrainingManager(
             dataframe=training_data,
@@ -1252,18 +1265,16 @@ def test_train_losses_segmentation_rad_2d(device):
 
 def test_generic_config_read():
     print("24: Starting testing reading configuration")
-    file_config_temp = get_temp_config_path()
-    parameters = parseConfig(
+    parameters = ConfigManager(
         os.path.join(baseConfigDir, "config_all_options.yaml"),
         version_check_flag=False,
     )
     parameters["data_preprocessing"]["resize_image"] = [128, 128]
 
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters, file)
+    file_config_temp = write_temp_config_path(parameters)
 
     # read and parse csv
-    parameters = parseConfig(file_config_temp, version_check_flag=True)
+    parameters = ConfigManager(file_config_temp, version_check_flag=True)
 
     training_data, parameters["headers"] = parseTrainingCSV(
         inputDir + "/train_2d_rad_segmentation.csv"
@@ -1283,7 +1294,7 @@ def test_generic_config_read():
     with open(file_config_temp, "w") as file:
         yaml.dump(parameters, file)
 
-    parameters = parseConfig(file_config_temp, version_check_flag=True)
+    parameters = ConfigManager(file_config_temp, version_check_flag=True)
 
     training_data, parameters["headers"] = parseTrainingCSV(
         inputDir + "/train_2d_rad_segmentation.csv"
@@ -1301,7 +1312,7 @@ def test_generic_config_read():
     with open(file_config_temp, "w") as file:
         yaml.dump(parameters, file)
 
-    parameters = parseConfig(file_config_temp, version_check_flag=True)
+    parameters = ConfigManager(file_config_temp, version_check_flag=True)
 
     training_data, parameters["headers"] = parseTrainingCSV(
         inputDir + "/train_2d_rad_segmentation.csv"
@@ -1319,7 +1330,7 @@ def test_generic_config_read():
     with open(file_config_temp, "w") as file:
         yaml.dump(parameters, file)
 
-    parameters = parseConfig(file_config_temp, version_check_flag=True)
+    parameters = ConfigManager(file_config_temp, version_check_flag=True)
 
     training_data, parameters["headers"] = parseTrainingCSV(
         inputDir + "/train_2d_rad_segmentation.csv"
@@ -1339,7 +1350,6 @@ def test_generic_cli_function_preprocess():
     print("25: Starting testing cli function preprocess")
     file_config = os.path.join(testingDir, "config_segmentation.yaml")
     sanitize_outputDir()
-    file_config_temp = get_temp_config_path()
     file_data = os.path.join(inputDir, "train_2d_rad_segmentation.csv")
 
     input_data_df, _ = parseTrainingCSV(file_data, train=False)
@@ -1352,7 +1362,7 @@ def test_generic_cli_function_preprocess():
     temp_csv = os.path.join(outputDir, "temp.csv")
     input_data_df.to_csv(temp_csv)
 
-    parameters = parseConfig(file_config)
+    parameters = ConfigManager(file_config)
     parameters["modality"] = "rad"
     parameters["patch_size"] = patch_size["2D"]
     parameters["model"]["dimension"] = 2
@@ -1363,15 +1373,17 @@ def test_generic_cli_function_preprocess():
     parameters["model"]["num_channels"] = 3
     parameters["model"]["architecture"] = "unet"
     parameters["metrics"] = ["dice"]
-    parameters["patch_sampler"] = "label"
+    parameters["patch_sampler"] = {
+        "type": "label",
+        "enable_padding": True,
+        "biased_sampling": True,
+    }
     parameters["weighted_loss"] = True
     parameters["save_output"] = True
     parameters["data_preprocessing"]["to_canonical"] = None
     parameters["data_preprocessing"]["rgba_to_rgb"] = None
 
-    # store this separately for preprocess testing
-    with open(file_config_temp, "w") as outfile:
-        yaml.dump(parameters, outfile, default_flow_style=False)
+    file_config_temp = write_temp_config_path(parameters)
 
     preprocess_and_save(temp_csv, file_config_temp, outputDir)
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -1389,7 +1401,7 @@ def test_generic_cli_function_preprocess():
 
     ## regression/classification preprocess
     file_config = os.path.join(testingDir, "config_regression.yaml")
-    parameters = parseConfig(file_config)
+    parameters = ConfigManager(file_config)
     parameters["modality"] = "rad"
     parameters["patch_size"] = patch_size["2D"]
     parameters["model"]["dimension"] = 2
@@ -1434,10 +1446,9 @@ def test_generic_cli_function_preprocess():
 
 def test_generic_cli_function_mainrun(device):
     print("26: Starting testing cli function main_run")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
-    file_config_temp = get_temp_config_path()
 
     parameters["modality"] = "rad"
     parameters["patch_size"] = patch_size["2D"]
@@ -1453,13 +1464,18 @@ def test_generic_cli_function_mainrun(device):
     ]
     parameters["model"]["architecture"] = "unet"
 
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters, file)
+    file_config_temp = write_temp_config_path(parameters)
 
     file_data = os.path.join(inputDir, "train_2d_rad_segmentation.csv")
 
     main_run(
-        file_data, file_config_temp, outputDir, True, device, resume=False, reset=True
+        file_data,
+        file_config_temp,
+        outputDir,
+        True,
+        device,
+        resume=False,
+        reset=True,
     )
     sanitize_outputDir()
 
@@ -1476,20 +1492,19 @@ def test_generic_cli_function_mainrun(device):
         resume=False,
         reset=True,
     )
-    sanitize_outputDir()
 
     with open(file_config_temp, "w") as file:
         yaml.dump(parameters, file)
 
-    # testing train/valid/test split
+    # testing train/valid/test split with resume
     main_run(
         file_data + "," + file_data + "," + file_data,
         file_config_temp,
         outputDir,
         True,
         device,
-        resume=False,
-        reset=True,
+        resume=True,
+        reset=False,
     )
     sanitize_outputDir()
 
@@ -1500,10 +1515,10 @@ def test_dataloader_construction_train_segmentation_3d(device):
     print("27: Starting 3D Rad segmentation tests")
     # read and parse csv
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
-    params_all_preprocessing_and_augs = parseConfig(
+    params_all_preprocessing_and_augs = ConfigManager(
         os.path.join(baseConfigDir, "config_all_options.yaml")
     )
 
@@ -1675,11 +1690,21 @@ def test_generic_preprocess_functions():
 
     cropper = global_preprocessing_dict["crop"]([64, 64, 64])
     input_transformed = cropper(input_tensor)
-    assert input_transformed.shape == (1, 128, 128, 128), "Cropping should work"
+    assert input_transformed.shape == (
+        1,
+        128,
+        128,
+        128,
+    ), "Cropping should work"
 
     cropper = global_preprocessing_dict["centercrop"]([128, 128, 128])
     input_transformed = cropper(input_tensor)
-    assert input_transformed.shape == (1, 128, 128, 128), "Center-crop should work"
+    assert input_transformed.shape == (
+        1,
+        128,
+        128,
+        128,
+    ), "Center-crop should work"
 
     # test pure morphological operations
     input_tensor_3d = torch.rand(1, 1, 256, 256, 256)
@@ -1784,7 +1809,7 @@ def test_generic_preprocess_functions():
 
 def test_generic_augmentation_functions():
     print("29: Starting testing augmentation functions")
-    params_all_preprocessing_and_augs = parseConfig(
+    params_all_preprocessing_and_augs = ConfigManager(
         os.path.join(baseConfigDir, "config_all_options.yaml")
     )
 
@@ -1809,6 +1834,52 @@ def test_generic_augmentation_functions():
     output_tensor = temp(input_tensor)
     assert output_tensor != None, "RGB Augmentation should work"
 
+    # testing HED transforms with different options
+    input_tensor = torch.rand(3, 128, 128, 1)
+    params = {
+        "data_augmentation": {
+            "hed_transform": {},
+            # "hed_transform_light": {},
+            # "hed_transform_heavy": {},
+        }
+    }
+    temp = global_augs_dict["hed_transform"](
+        params_all_preprocessing_and_augs["data_augmentation"]["hed_transform"]
+    )
+    ranges = [
+        "haematoxylin_bias_range",
+        "eosin_bias_range",
+        "dab_bias_range",
+        "haematoxylin_sigma_range",
+        "eosin_sigma_range",
+        "dab_sigma_range",
+    ]
+
+    default_range = [-0.1, 0.1]
+    for key in ranges:
+        params["data_augmentation"]["hed_transform"].setdefault(key, default_range)
+
+    params["data_augmentation"]["hed_transform"].setdefault(
+        "cutoff_range", [0.05, 0.95]
+    )
+
+    # Check if the params are correctly set for each augmentation type
+    assert params["data_augmentation"]["hed_transform"] == {
+        "haematoxylin_bias_range": [-0.1, 0.1],
+        "eosin_bias_range": [-0.1, 0.1],
+        "dab_bias_range": [-0.1, 0.1],
+        "haematoxylin_sigma_range": [-0.1, 0.1],
+        "eosin_sigma_range": [-0.1, 0.1],
+        "dab_sigma_range": [-0.1, 0.1],
+        "cutoff_range": [0.05, 0.95],
+    }
+    temp = global_augs_dict["hed_transform"](
+        params_all_preprocessing_and_augs["data_augmentation"]["hed_transform"]
+    )
+    output_tensor = None
+    output_tensor = temp(input_tensor)
+    assert output_tensor != None, "HED Augmentation should work"
+
     # this is for all other augmentations
     input_tensor = torch.rand(3, 128, 128, 128)
     for aug in params_all_preprocessing_and_augs["data_augmentation"]:
@@ -1822,7 +1893,11 @@ def test_generic_augmentation_functions():
 
     # additional test for elastic
     params_elastic = params_all_preprocessing_and_augs["data_augmentation"]["elastic"]
-    for key_to_pop in ["num_control_points", "max_displacement", "locked_borders"]:
+    for key_to_pop in [
+        "num_control_points",
+        "max_displacement",
+        "locked_borders",
+    ]:
         params_elastic.pop(key_to_pop, None)
     output_tensor = global_augs_dict["elastic"](params_elastic)(input_tensor)
     assert output_tensor != None, "Augmentation for base elastic transform should work"
@@ -1835,9 +1910,17 @@ def test_generic_augmentation_functions():
 def test_train_checkpointing_segmentation_rad_2d(device):
     print("30: Starting 2D Rad segmentation tests for metrics")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
+    parameters["patch_sampler"] = {
+        "type": "label",
+        "enable_padding": True,
+        "biased_sampling": True,
+    }
+    file_config_temp = write_temp_config_path(parameters)
+    parameters = ConfigManager(file_config_temp, version_check_flag=False)
+
     training_data, parameters["headers"] = parseTrainingCSV(
         inputDir + "/train_2d_rad_segmentation.csv"
     )
@@ -1897,7 +1980,7 @@ def test_train_checkpointing_segmentation_rad_2d(device):
 
 def test_generic_model_patch_divisibility():
     print("31: Starting patch divisibility tests")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     _, parameters["headers"] = parseTrainingCSV(
@@ -1935,8 +2018,7 @@ def test_generic_one_hot_logic():
     print("32: Starting one hot logic tests")
     random_array = np.random.randint(5, size=(20, 20, 20))
     img = sitk.GetImageFromArray(random_array)
-    img_array = sitk.GetArrayFromImage(img)
-    img_tensor = torch.from_numpy(img_array).to(torch.float16)
+    img_tensor = get_tensor_from_image(img).to(torch.float16)
     img_tensor = img_tensor.unsqueeze(0).unsqueeze(0)
 
     class_list = [*range(0, np.max(random_array) + 1)]
@@ -1961,7 +2043,8 @@ def test_generic_one_hot_logic():
 
     # check combined foreground
     combined_array = np.logical_or(
-        np.logical_or((random_array == 1), (random_array == 2)), (random_array == 3)
+        np.logical_or((random_array == 1), (random_array == 2)),
+        (random_array == 3),
     )
     comparison = combined_array == (img_tensor_oh_rev_array == 1)
     assert comparison.all(), "Arrays at the combined foreground are not equal"
@@ -2007,7 +2090,8 @@ def test_generic_one_hot_logic():
 
     # check combined foreground
     combined_array = np.logical_or(
-        np.logical_or((random_array == 1), (random_array == 2)), (random_array == 3)
+        np.logical_or((random_array == 1), (random_array == 2)),
+        (random_array == 3),
     )
     comparison = combined_array == (img_tensor_oh_rev_array == 1)
     assert comparison.all(), "Arrays at the combined foreground are not equal"
@@ -2076,7 +2160,6 @@ def test_train_inference_segmentation_histology_2d(device):
     Path(output_dir_patches).mkdir(parents=True, exist_ok=True)
     output_dir_patches_output = os.path.join(output_dir_patches, "histo_patches_output")
     Path(output_dir_patches_output).mkdir(parents=True, exist_ok=True)
-    file_config_temp = get_temp_config_path()
 
     parameters_patch = {}
     # extracting minimal number of patches to ensure that the test does not take too long
@@ -2085,8 +2168,7 @@ def test_train_inference_segmentation_histology_2d(device):
     # define patches to be extracted in terms of microns
     parameters_patch["patch_size"] = ["1000m", "1000m"]
 
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters_patch, file)
+    file_config_temp = write_temp_config_path(parameters_patch)
 
     patch_extraction(
         inputDir + "/train_2d_histo_segmentation.csv",
@@ -2096,7 +2178,7 @@ def test_train_inference_segmentation_histology_2d(device):
 
     file_for_Training = os.path.join(output_dir_patches_output, "opm_train.csv")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(file_for_Training)
@@ -2152,7 +2234,6 @@ def test_train_inference_classification_histology_large_2d(device):
     Path(output_dir_patches).mkdir(parents=True, exist_ok=True)
     output_dir_patches_output = os.path.join(output_dir_patches, "histo_patches_output")
     Path(output_dir_patches_output).mkdir(parents=True, exist_ok=True)
-    file_config_temp = get_temp_config_path()
 
     for sub in ["1", "2"]:
         file_to_check = os.path.join(
@@ -2167,8 +2248,7 @@ def test_train_inference_classification_histology_large_2d(device):
     parameters_patch["patch_size"] = [128, 128]
     parameters_patch["value_map"] = {0: 0, 255: 255}
 
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters_patch, file)
+    file_config_temp = write_temp_config_path(parameters_patch)
 
     patch_extraction(
         inputDir + "/train_2d_histo_classification.csv",
@@ -2244,15 +2324,13 @@ def test_train_inference_classification_histology_large_2d(device):
     temp_df["valuetopredict"] = np.random.randint(2, size=len(temp_df))
     temp_df.to_csv(file_for_Training, index=False)
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "histo"
     parameters["patch_size"] = parameters_patch["patch_size"][0]
-    file_config_temp = get_temp_config_path()
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters, file)
-    parameters = parseConfig(file_config_temp, version_check_flag=False)
+    file_config_temp = write_temp_config_path(parameters)
+    parameters = ConfigManager(file_config_temp, version_check_flag=False)
     parameters["model"]["dimension"] = 2
     # read and parse csv
     training_data, parameters["headers"] = parseTrainingCSV(file_for_Training)
@@ -2328,7 +2406,6 @@ def test_train_inference_classification_histology_2d(device):
         shutil.rmtree(output_dir_patches)
     Path(output_dir_patches).mkdir(parents=True, exist_ok=True)
     output_dir_patches_output = os.path.join(output_dir_patches, "histo_patches_output")
-    file_config_temp = get_temp_config_path()
 
     parameters_patch = {}
     # extracting minimal number of patches to ensure that the test does not take too long
@@ -2336,8 +2413,7 @@ def test_train_inference_classification_histology_2d(device):
 
     for num_patches in [-1, 3]:
         parameters_patch["num_patches"] = num_patches
-        with open(file_config_temp, "w") as file:
-            yaml.dump(parameters_patch, file)
+        file_config_temp = write_temp_config_path(parameters_patch)
 
         if os.path.exists(output_dir_patches_output):
             shutil.rmtree(output_dir_patches_output)
@@ -2355,15 +2431,13 @@ def test_train_inference_classification_histology_2d(device):
     temp_df["valuetopredict"] = np.random.randint(2, size=6)
     temp_df.to_csv(file_for_Training, index=False)
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "histo"
     parameters["patch_size"] = 128
-    file_config_temp = get_temp_config_path()
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters, file)
-    parameters = parseConfig(file_config_temp, version_check_flag=False)
+    file_config_temp = write_temp_config_path(parameters)
+    parameters = ConfigManager(file_config_temp, version_check_flag=False)
     parameters["model"]["dimension"] = 2
     # read and parse csv
     training_data, parameters["headers"] = parseTrainingCSV(file_for_Training)
@@ -2416,7 +2490,7 @@ def test_train_segmentation_unet_layerchange_rad_2d(device):
     print("37: Starting 2D Rad segmentation tests for normtype")
     # read and parse csv
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2463,7 +2537,7 @@ def test_train_segmentation_unet_layerchange_rad_2d(device):
 
 def test_train_segmentation_unetr_rad_3d(device):
     print("38: Testing UNETR for 3D segmentation")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2521,7 +2595,7 @@ def test_train_segmentation_unetr_rad_3d(device):
 
 def test_train_segmentation_unetr_rad_2d(device):
     print("39: Testing UNETR for 2D segmentation")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2561,7 +2635,7 @@ def test_train_segmentation_unetr_rad_2d(device):
 
 def test_train_segmentation_transunet_rad_2d(device):
     print("40: Testing TransUNet for 2D segmentation")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2612,7 +2686,7 @@ def test_train_segmentation_transunet_rad_2d(device):
 
 def test_train_segmentation_transunet_rad_3d(device):
     print("41: Testing TransUNet for 3D segmentation")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2675,7 +2749,7 @@ def test_train_segmentation_transunet_rad_3d(device):
 def test_train_gradient_clipping_classification_rad_2d(device):
     print("42: Testing gradient clipping")
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_classification.yaml", version_check_flag=False
     )
     parameters["modality"] = "rad"
@@ -2715,7 +2789,7 @@ def test_train_segmentation_unet_conversion_rad_3d(device):
     print("43: Starting 3D Rad segmentation tests for unet with ACS conversion")
     # read and parse csv
     # read and initialize parameters for specific data dimension
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2769,7 +2843,7 @@ def test_generic_cli_function_configgenerator():
     for file in all_files:
         parameters = None
         with suppress_stdout_stderr():
-            parameters = parseConfig(
+            parameters = ConfigManager(
                 os.path.join(outputDir, file), version_check_flag=False
             )
         assert parameters, "config generator did not generate valid config files"
@@ -2780,9 +2854,7 @@ def test_generic_cli_function_configgenerator():
         "key_1": {"key_2": "value"}
     }
 
-    file_config_temp = get_temp_config_path()
-    with open(file_config_temp, "w") as file:
-        yaml.dump(generator_config, file)
+    file_config_temp = write_temp_config_path(generator_config)
 
     # test for failure
     with pytest.raises(Exception) as exc_info:
@@ -2801,7 +2873,7 @@ def test_generic_cli_function_recoverconfig():
     # Train, then recover a config and see if it exists/is valid YAML
 
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2826,14 +2898,14 @@ def test_generic_cli_function_recoverconfig():
         resume=False,
         reset=True,
     )
-    output_config_path = get_temp_config_path()
+    output_config_path = write_temp_config_path(None)
     assert recover_config(
         outputDir, output_config_path
     ), "recover_config returned false"
     assert os.path.exists(output_config_path), "Didn't create a config file"
 
-    new_params = parseConfig(output_config_path, version_check_flag=False)
-    assert new_params, "Created YAML could not be parsed by parseConfig"
+    new_params = ConfigManager(output_config_path, version_check_flag=False)
+    assert new_params, "Created YAML could not be parsed by ConfigManager"
 
     sanitize_outputDir()
 
@@ -2846,7 +2918,7 @@ def test_generic_deploy_docker():
 
     deploymentOutputDir = os.path.join(outputDir, "mlcube")
     # read and parse csv
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
     training_data, parameters["headers"] = parseTrainingCSV(
@@ -2875,16 +2947,26 @@ def test_generic_deploy_docker():
         reset=True,
     )
 
-    result = run_deployment(
-        outputDir,
-        testingDir + "/config_segmentation.yaml",
-        "docker",
-        deploymentOutputDir,
-        os.path.join(gandlfRootDir, "mlcube"),
-        requires_gpu=True,
+    custom_entrypoint = os.path.join(
+        gandlfRootDir,
+        "mlcube/model_mlcube/example_custom_entrypoint/getting_started_3d_rad_seg.py",
     )
+    for entrypoint_script in [None, custom_entrypoint]:
+        result = run_deployment(
+            os.path.join(gandlfRootDir, "mlcube/model_mlcube/"),
+            deploymentOutputDir,
+            "docker",
+            "model",
+            entrypoint_script=entrypoint_script,
+            configfile=testingDir + "/config_segmentation.yaml",
+            modeldir=outputDir,
+            requires_gpu=True,
+        )
+        msg = "run_deployment returned false"
+        if entrypoint_script:
+            msg += " with custom entrypoint script"
+        assert result, msg
 
-    assert result, "run_deployment returned false"
     sanitize_outputDir()
 
     print("passed")
@@ -2892,10 +2974,9 @@ def test_generic_deploy_docker():
 
 def test_collision_subjectid_test_segmentation_rad_2d(device):
     print("47: Starting 2D Rad segmentation tests for collision of subjectID in test")
-    parameters = parseConfig(
+    parameters = ConfigManager(
         testingDir + "/config_segmentation.yaml", version_check_flag=False
     )
-    file_config_temp = get_temp_config_path()
 
     parameters["modality"] = "rad"
     parameters["patch_size"] = patch_size["2D"]
@@ -2912,8 +2993,7 @@ def test_collision_subjectid_test_segmentation_rad_2d(device):
     parameters["model"]["architecture"] = "unet"
     outputDir = os.path.join(testingDir, "data_output")
 
-    with open(file_config_temp, "w") as file:
-        yaml.dump(parameters, file)
+    file_config_temp = write_temp_config_path(parameters)
 
     # test the case where outputDir is explicitly provided to InferenceManager
     train_data_path = inputDir + "/train_2d_rad_segmentation.csv"
@@ -2971,21 +3051,35 @@ def test_generic_random_numbers_are_deterministic_on_cpu():
 def test_generic_cli_function_metrics_cli_rad_nd():
     print("49: Starting metric calculation tests")
     for dim in ["2d", "3d"]:
-        for problem_type in ["segmentation", "classification"]:
+        for problem_type in [
+            "segmentation",
+            "classification",
+            "synthesis",
+        ]:
+            synthesis_detected = problem_type == "synthesis"
+            problem_type_wrap = problem_type
+            if synthesis_detected:
+                problem_type_wrap = "classification"
             # read and parse csv
             training_data, _ = parseTrainingCSV(
-                inputDir + f"/train_{dim}_rad_{problem_type}.csv"
+                inputDir + f"/train_{dim}_rad_{problem_type_wrap}.csv"
             )
-            if problem_type == "segmentation":
+            if problem_type_wrap == "segmentation":
                 labels_array = training_data["Label"]
+            elif synthesis_detected:
+                labels_array = training_data["Channel_0"]
             else:
                 labels_array = training_data["ValueToPredict"]
             training_data["target"] = labels_array
             training_data["prediction"] = labels_array
+            if synthesis_detected:
+                # this optional
+                training_data["mask"] = training_data["Label"]
 
             # read and initialize parameters for specific data dimension
-            parameters = parseConfig(
-                testingDir + f"/config_{problem_type}.yaml", version_check_flag=False
+            parameters = ConfigManager(
+                testingDir + f"/config_{problem_type_wrap}.yaml",
+                version_check_flag=False,
             )
             parameters["modality"] = "rad"
             parameters["patch_size"] = patch_size["2D"]
@@ -2995,16 +3089,15 @@ def test_generic_cli_function_metrics_cli_rad_nd():
                 parameters["model"]["dimension"] = 3
 
             parameters["verbose"] = False
+            if synthesis_detected:
+                parameters["problem_type"] = problem_type
 
             temp_infer_csv = os.path.join(outputDir, "temp_csv.csv")
             training_data.to_csv(temp_infer_csv, index=False)
 
             output_file = os.path.join(outputDir, "output.yaml")
-            training_data.to_csv(temp_infer_csv, index=False)
 
-            temp_config = get_temp_config_path()
-            with open(temp_config, "w") as file:
-                yaml.dump(parameters, file)
+            temp_config = write_temp_config_path(parameters)
 
             # run the metrics calculation
             generate_metrics_dict(temp_infer_csv, temp_config, output_file)
@@ -3012,3 +3105,26 @@ def test_generic_cli_function_metrics_cli_rad_nd():
             assert os.path.isfile(output_file), "Metrics output file was not generated"
 
             sanitize_outputDir()
+
+
+def test_generic_deploy_metrics_docker():
+    print("50: Testing deployment of a metrics generator to Docker")
+    # requires an installed Docker engine
+
+    deploymentOutputDir = os.path.join(outputDir, "mlcube")
+
+    result = run_deployment(
+        os.path.join(gandlfRootDir, "mlcube/model_mlcube/"),
+        deploymentOutputDir,
+        "docker",
+        "metrics",
+    )
+
+    assert result, "run_deployment returned false"
+    sanitize_outputDir()
+
+    print("passed")
+
+    sanitize_outputDir()
+
+    print("passed")

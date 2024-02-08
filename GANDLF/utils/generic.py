@@ -1,10 +1,12 @@
 import os, datetime, sys
+from copy import deepcopy
 import random
 import numpy as np
 import torch
 import SimpleITK as sitk
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull
+from typing import Dict, Any, Union
 
 
 @contextmanager
@@ -45,6 +47,20 @@ def checkPatchDivisibility(patch_size, number=16):
     if (unique.shape[0] == 1) and (unique[0] < number):
         return False
     return True
+
+
+def determine_classification_task_type(
+    params: Dict[str, Union[Dict[str, Any], Any]]
+) -> str:
+    """Determine the task (binary or multiclass) from the model config.
+    Args:
+        params (dict): The parameter dictionary containing training and data information.
+
+    Returns:
+        str: A string that denotes the classification task type.
+    """
+    task = "binary" if params["model"]["num_classes"] == 2 else "multiclass"
+    return task
 
 
 def get_date_time():
@@ -94,7 +110,8 @@ def parse_version(version_string):
     Returns:
         int: The version number.
     """
-    version_string_split = version_string.split(".")
+    version_string_split = version_string.replace("-dev", "")
+    version_string_split = version_string_split.split(".")
     if len(version_string_split) > 3:
         del version_string_split[-1]
     return int("".join(version_string_split))
@@ -200,3 +217,98 @@ def set_determinism(seed=42):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = True
+
+
+def print_and_format_metrics(
+    cohort_level_metrics,
+    sample_level_metrics,
+    metrics_dict_from_parameters,
+    mode,
+    length_of_dataloader,
+):
+    """
+    This function prints and formats the metrics.
+
+    Args:
+        cohort_level_metrics (dict): The cohort level metrics calculated from the GANDLF.metrics.overall_stats function.
+        sample_level_metrics (dict): The sample level metrics calculated from separate samples from the dataloader(s).
+        metrics_dict_from_parameters (dict): The metrics dictionary to populate.
+        mode (str): The mode of the metrics (train, val, test).
+        length_of_dataloader (int): The length of the dataloader.
+
+    Returns:
+        dict: The metrics dictionary populated with the metrics.
+    """
+
+    def __update_metric_from_list_to_single_string(input_metrics_dict) -> dict:
+        """
+        Helper function updates the metrics dictionary to have a single string for each metric.
+
+        Args:
+            input_metrics_dict (dict): The input metrics dictionary.
+        Returns:
+            dict: The updated metrics dictionary.
+        """
+        print(input_metrics_dict)
+        output_metrics_dict = deepcopy(input_metrics_dict)
+        for metric in input_metrics_dict.keys():
+            if isinstance(input_metrics_dict[metric], list):
+                output_metrics_dict[metric] = ("_").join(
+                    str(input_metrics_dict[metric])
+                    .replace("[", "")
+                    .replace("]", "")
+                    .replace(" ", "")
+                    .split(",")
+                )
+
+        print(output_metrics_dict)
+        return output_metrics_dict
+
+    output_metrics_dict = deepcopy(cohort_level_metrics)
+    for metric in metrics_dict_from_parameters:
+        if isinstance(sample_level_metrics[metric], np.ndarray):
+            to_print = (sample_level_metrics[metric] / length_of_dataloader).tolist()
+        else:
+            to_print = sample_level_metrics[metric] / length_of_dataloader
+        output_metrics_dict[metric] = to_print
+    for metric in output_metrics_dict.keys():
+        print(
+            "     Epoch Final   " + mode + " " + metric + " : ",
+            output_metrics_dict[metric],
+        )
+    output_metrics_dict = __update_metric_from_list_to_single_string(
+        output_metrics_dict
+    )
+
+    return output_metrics_dict
+
+
+def define_average_type_key(
+    params: Dict[str, Union[Dict[str, Any], Any]], metric_name: str
+) -> str:
+    """Determine if the the 'average' filed is defined in the metric config.
+    If not, fallback to the default 'macro'
+    values.
+    Args:
+        params (dict): The parameter dictionary containing training and data information.
+        metric_name (str): The name of the metric.
+
+    Returns:
+        str: The average type key.
+    """
+    average_type_key = params["metrics"][metric_name].get("average", "macro")
+    return average_type_key
+
+
+def define_multidim_average_type_key(params, metric_name) -> str:
+    """Determine if the the 'multidim_average' filed is defined in the metric config.
+    If not, fallback to the default 'global'.
+    Args:
+        params (dict): The parameter dictionary containing training and data information.
+        metric_name (str): The name of the metric.
+
+    Returns:
+        str: The average type key.
+    """
+    average_type_key = params["metrics"][metric_name].get("multidim_average", "global")
+    return average_type_key

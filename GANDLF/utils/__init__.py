@@ -8,6 +8,7 @@ from .imaging import (
     resample_image,
     perform_sanity_check_on_subject,
     write_training_patches,
+    get_correct_padding_size,
 )
 
 from .tensor import (
@@ -22,6 +23,8 @@ from .tensor import (
     print_model_summary,
     get_ground_truths_and_predictions_tensor,
     get_output_from_calculator,
+    get_tensor_from_image,
+    get_image_from_tensor,
     update_step_for_hpu,
 )
 
@@ -48,6 +51,8 @@ from .generic import (
     get_array_from_image_or_tensor,
     suppress_stdout_stderr,
     set_determinism,
+    print_and_format_metrics,
+    determine_classification_task_type,
 )
 
 from .modelio import (

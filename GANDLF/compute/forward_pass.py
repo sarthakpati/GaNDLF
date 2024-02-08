@@ -16,6 +16,7 @@ from GANDLF.utils import (
     resample_image,
     reverse_one_hot,
     get_ground_truths_and_predictions_tensor,
+    print_and_format_metrics,
     update_step_for_hpu,
 )
 from GANDLF.metrics import overall_stats
@@ -129,12 +130,12 @@ def validate_network(
         subject_dict = {}
         label_ground_truth = None
         label_present = False
-        # this is when we want the dataloader to pick up properties of GaNDLF's DataLoader, such as pre-processing and augmentations, if appropriate
+        # this is when we want the dataloader to pick up properties of GaNDLF's
+        # DataLoader, such as pre-processing and augmentations, if appropriate
         if "label" in subject:
             if subject["label"] != ["NA"]:
-                subject_dict["label"] = torchio.Image(
+                subject_dict["label"] = torchio.LabelMap(
                     path=subject["label"]["path"],
-                    type=torchio.LABEL,
                     tensor=subject["label"]["data"].squeeze(0),
                     affine=subject["label"]["affine"].squeeze(0),
                 )
@@ -149,9 +150,8 @@ def validate_network(
                 )
 
         for key in params["channel_keys"]:
-            subject_dict[key] = torchio.Image(
+            subject_dict[key] = torchio.ScalarImage(
                 path=subject[key]["path"],
-                type=subject[key]["type"],
                 tensor=subject[key]["data"].squeeze(0),
                 affine=subject[key]["affine"].squeeze(0),
             )
@@ -321,8 +321,7 @@ def validate_network(
                 output_prediction = aggregator.get_output_tensor()
                 output_prediction = output_prediction.unsqueeze(0)
                 if params["save_output"]:
-                    img_for_metadata = torchio.Image(
-                        type=subject["1"]["type"],
+                    img_for_metadata = torchio.ScalarImage(
                         tensor=subject["1"]["data"].squeeze(0),
                         affine=subject["1"]["affine"].squeeze(0),
                     ).as_sitk()
@@ -503,19 +502,14 @@ def validate_network(
             average_epoch_valid_metric = overall_stats(
                 predictions_array, ground_truth_array, params
             )
-        for metric in params["metrics"]:
-            if isinstance(total_epoch_valid_metric[metric], np.ndarray):
-                to_print = (
-                    total_epoch_valid_metric[metric] / len(valid_dataloader)
-                ).tolist()
-            else:
-                to_print = total_epoch_valid_metric[metric] / len(valid_dataloader)
-            average_epoch_valid_metric[metric] = to_print
-        for metric in average_epoch_valid_metric.keys():
-            print(
-                "     Epoch Final   " + mode + " " + metric + " : ",
-                average_epoch_valid_metric[metric],
-            )
+        average_epoch_valid_metric = print_and_format_metrics(
+            average_epoch_valid_metric,
+            total_epoch_valid_metric,
+            params["metrics"],
+            mode,
+            len(valid_dataloader),
+        )
+
     else:
         average_epoch_valid_loss, average_epoch_valid_metric = 0, {}
 

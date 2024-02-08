@@ -32,7 +32,7 @@ if __name__ == "__main__":
         metavar="",
         type=str,
         required=True,
-        help="CSV file that is used to generate the metrics; should contain 3 columns: 'subjectid, prediction, target'",
+        help="The CSV file of input data that is used to generate the metrics; should contain 3 columns: 'SubjectID,Target,Prediction'",
     )
     parser.add_argument(
         "-o",
@@ -56,14 +56,11 @@ if __name__ == "__main__":
     parser.add_argument("-rawinput", "--rawinput", help=argparse.SUPPRESS)
 
     args = parser.parse_args()
-    if args.modeldir is None and args.outputdir:
-        args.modeldir = args.outputdir
-
     assert args.config is not None, "Missing required parameter: config"
     assert args.inputdata is not None, "Missing required parameter: inputdata"
 
     try:
-        generate_metrics(
+        generate_metrics.generate_metrics_dict(
             args.inputdata,
             args.config,
             args.outputfile,

@@ -1,8 +1,8 @@
 # affix version
 version:
   {
-    minimum: 0.0.17,
-    maximum: 0.0.17 # this should NOT be made a variable, but should be tested after every tag is created
+    minimum: 0.0.18,
+    maximum: 0.0.18 # this should NOT be made a variable, but should be tested after every tag is created
   }
 ## Choose the model parameters here
 model:
@@ -51,14 +51,14 @@ metrics:
   # - hausdorff # hausdorff 100 percentile, segmentation
   # - hausdorff95 # hausdorff 95 percentile, segmentation
   # - mse # regression/classification
-  # - accuracy # classification
+  # - accuracy # classification ## more details https://lightning.ai/docs/torchmetrics/v1.1.2/classification/accuracy.html
   # - classification_accuracy # classification
   # - balanced_accuracy # classification ## more details https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced_accuracy_score.html
   # - per_label_accuracy # used for classification
-  # - f1 # classification/segmentation
-  # - precision # classification/segmentation ## more details https://torchmetrics.readthedocs.io/en/latest/references/modules.html#id3
-  # - recall # classification/segmentation ## more details https://torchmetrics.readthedocs.io/en/latest/references/modules.html#id4
-  # - iou # classification/segmentation ## more details https://torchmetrics.readthedocs.io/en/latest/references/modules.html#iou
+  # - f1 # classification/segmentation ## more details https://lightning.ai/docs/torchmetrics/v1.1.2/classification/f1_score.html
+  # - precision # classification/segmentation ## more details https://lightning.ai/docs/torchmetrics/v1.1.2/classification/precision.html
+  # - recall # classification/segmentation ## more details https://lightning.ai/docs/torchmetrics/v1.1.2/classification/recall.html
+  # - iou # classification/segmentation ## more details https://lightning.ai/docs/torchmetrics/v1.1.2/classification/jaccard_index.html
 ## this customizes the inference, primarily used for segmentation outputs
 inference_mechanism: {
   grid_aggregator_overlap: crop, # this option provides the option to strategize the grid aggregation output; should be either 'crop' or 'average' - https://torchio.readthedocs.io/patches/patch_inference.html#grid-aggregator
@@ -82,10 +82,10 @@ patch_sampler: uniform
 # patch_sampler: label
 # patch_sampler:
 #   {
-#     label:
-#       {
-#         padding_type: constant # how the label gets padded, for options, see 'mode' in https://numpy.org/doc/stable/reference/generated/numpy.pad.html
-#       }
+#     type: label,
+#     enable_padding: True,
+#     padding_mode: symmetric,  # for options, see 'mode' in https://numpy.org/doc/stable/reference/generated/numpy.pad.html
+#     biased_sampling: True,  # adds additional sampling probability of labels based on "sampling_weights" key; only gets invoked when using label sampler. If not present, gets calculated using the same mechanism as weighted_loss
 #   }
 # If enabled, this parameter pads images and labels when label sampler is used
 enable_padding: False
@@ -110,16 +110,23 @@ scheduler:
     max_lr: 1,
   }
 # Set which loss function you want to use - options : 'dc' - for dice only, 'dcce' - for sum of dice and CE and you can guess the next (only lower-case please)
-# options: dc (dice only), dc_log (-log of dice), ce (), dcce (sum of dice and ce), mse () ...
+# options: dc (dice only), dc_log (-log of dice), ce (), dcce (sum of dice and ce), focal/dc_focal, mcc/mcc_log, mse () ...
 # mse is the MSE defined by torch and can define a variable 'reduction'; see https://pytorch.org/docs/stable/generated/torch.nn.MSELoss.html#torch.nn.MSELoss
+# focal is the focal loss and can define 2 variables: gamma and size_average
 # use mse_torch for regression/classification problems and dice for segmentation
 loss_function: dc
 # this parameter weights the loss to handle imbalanced losses better
-weighted_loss: True 
+weighted_loss: True  # generates new keys "class_weights" and "penalty_weights" that handle the aggregate weights of the class and penalties per label, respectively
 #loss_function:
 #  {
 #    'mse':{
 #      'reduction': 'mean' # see https://pytorch.org/docs/stable/generated/torch.nn.MSELoss.html#torch.nn.MSELoss for all options
+#    }
+#  }
+#loss_function:
+#  {
+#    'focal':{
+#      'gamma': 1.0
 #    }
 #  }
 # Which optimizer do you want to use - sgd, asgd, adam, adamw, adamax, sparseadam, rprop, adadelta, adagrad, rmsprop,
@@ -263,6 +270,15 @@ data_augmentation:
       'saturation': [0,0.5], # optional: needs to be between [0,1]
       'hue': [-0.25,0.25], # optional: needs to be between [-0.5,0.5] for range and [0,1] for a single value
     }, 
+    'hed_transform':{
+      'haematoxylin_bias_range': [-0.1, 0.1],
+      'eosin_bias_range': [-0.1, 0.1],
+      'dab_bias_range': [-0.1, 0.1],
+      'haematoxylin_sigma_range': [-0.1, 0.1],
+      'eosin_sigma_range': [-0.1, 0.1],
+      'dab_sigma_range': [-0.1, 0.1],
+      'cutoff_range': [0.01, 0.99],
+    }
   }
 # ## post-processing steps - only applied before output labels are saved
 # data_postprocessing:

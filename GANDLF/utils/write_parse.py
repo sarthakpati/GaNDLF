@@ -9,7 +9,7 @@ from .handle_collisions import handle_collisions
 
 def writeTrainingCSV(
     inputDir, channelsID, labelID, outputFile, relativizePathsToOutput=False
-):
+) -> None:
     """
     This function writes the CSV file based on the input directory, channelsID + labelsID strings
 
@@ -22,8 +22,9 @@ def writeTrainingCSV(
     channelsID_list = channelsID.split(",")  # split into list
 
     outputToWrite = "SubjectID,"
-    for i, n in enumerate(channelsID_list):
-        outputToWrite += "Channel_" + str(i) + ","
+    outputToWrite += (
+        ",".join(["Channel_" + str(i) for i, n in enumerate(channelsID_list)]) + ","
+    )
     if labelID is not None:
         outputToWrite += "Label"
     outputToWrite += "\n"
@@ -63,7 +64,7 @@ def writeTrainingCSV(
     file.close()
 
 
-def parseTrainingCSV(inputTrainingCSVFile, train=True):
+def parseTrainingCSV(inputTrainingCSVFile, train=True) -> (pd.DataFrame, dict):
     """
     This function parses the input training CSV and returns a dictionary of headers and the full (randomized) data frame
 
@@ -124,7 +125,7 @@ def parseTrainingCSV(inputTrainingCSVFile, train=True):
     return data_full, headers
 
 
-def parseTestingCSV(inputTrainingCSVFile, output_dir):
+def parseTestingCSV(inputTrainingCSVFile, output_dir) -> (bool, pd.DataFrame, dict):
     """
     This function parses the input training CSV and returns a dictionary of headers and the full (randomized) data frame
 
@@ -133,6 +134,7 @@ def parseTestingCSV(inputTrainingCSVFile, output_dir):
         train (bool, optional): Whether performing training. Defaults to True.
 
     Returns:
+        bool: Whether collisions were found or not.
         pandas.DataFrame: The full dataset for computation.
         dict: The dictionary containing all relevant CSV headers.
     """
@@ -157,7 +159,7 @@ def parseTestingCSV(inputTrainingCSVFile, output_dir):
     return collision_status, data_full, headers
 
 
-def get_dataframe(input_file):
+def get_dataframe(input_file) -> pd.DataFrame:
     """
     This function parses the input and returns a data frame
 
@@ -167,16 +169,21 @@ def get_dataframe(input_file):
     Returns:
         pandas.DataFrame: The full dataset for computation.
     """
+    return_dataframe = None
     if isinstance(input_file, str):
         if input_file.endswith(".pkl"):
-            return pd.read_pickle(input_file)
+            return_dataframe = pd.read_pickle(input_file)
         elif input_file.endswith(".csv"):
-            return pd.read_csv(input_file)
+            return_dataframe = pd.read_csv(input_file)
     elif isinstance(input_file, pd.DataFrame):
-        return input_file
+        return_dataframe = input_file
+
+    return return_dataframe
 
 
-def convert_relative_paths_in_dataframe(input_dataframe, headers, path_root):
+def convert_relative_paths_in_dataframe(
+    input_dataframe, headers, path_root
+) -> pd.DataFrame:
     """
     This function takes a dataframe containing paths and a root path (usually to a data CSV file).
     These paths are combined with that root to create an absolute path.
