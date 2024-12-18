@@ -193,6 +193,7 @@ Fsegmentation
 Fulcio
 Fworkflows
 gandlf
+gandlfcpu
 Gastounioti
 gbp
 gcam
