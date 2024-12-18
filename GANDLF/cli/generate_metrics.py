@@ -12,7 +12,11 @@ import SimpleITK as sitk
 import numpy as np
 
 from GANDLF.config_manager import ConfigManager
-from GANDLF.utils import find_problem_type_from_parameters, one_hot
+from GANDLF.utils import (
+    find_problem_type_from_parameters,
+    one_hot,
+    convert_relative_paths_in_dataframe,
+)
 from GANDLF.metrics import (
     overall_stats,
     structural_similarity_index,
@@ -178,21 +182,11 @@ def generate_metrics_dict(
         class_list = parameters["model"]["class_list"]
         # check if the paths are relative or absolute, and convert them to absolute paths
         cwd = Path(__file__).resolve().parent
-        for column in input_df.columns:
-            loc = input_df.columns.get_loc(column)
-            if (loc == "Target") or (loc == "Prediction"):
-                # These entries can be considered as paths to files
-                for index, entry in enumerate(input_df[column]):
-                    if isinstance(entry, str):
-                        this_path = Path(entry)
-                        start_path = Path(cwd)
-                        if start_path.is_file():
-                            start_path = start_path.parent
-                        if not this_path.is_file():
-                            if not this_path.is_absolute():
-                                input_df.loc[index, column] = str(
-                                    start_path.joinpath(this_path)
-                                )
+        # initialize the headers_dict_temp and convert the paths to absolute paths
+        headers_dict_temp = {"channelHeaders": ["Target", "Prediction", "Mask"]}
+        input_df = convert_relative_paths_in_dataframe(
+            input_df, headers_dict_temp, cwd, force_convert=True
+        )
         for _, row in tqdm(input_df.iterrows(), total=input_df.shape[0]):
             current_subject_id = row["SubjectID"]
             overall_stats_dict[current_subject_id] = {}
@@ -376,9 +370,9 @@ def generate_metrics_dict(
                     strictlyPositive=True,
                 )
 
-            overall_stats_dict[current_subject_id][
-                "ssim"
-            ] = structural_similarity_index(output_infill, gt_image_infill, mask).item()
+            overall_stats_dict[current_subject_id]["ssim"] = (
+                structural_similarity_index(output_infill, gt_image_infill, mask).item()
+            )
 
             # ncc metrics
             compute_ncc = parameters.get("compute_ncc", True)
@@ -419,30 +413,30 @@ def generate_metrics_dict(
             ).item()
 
             # same as above but with epsilon for robustness
-            overall_stats_dict[current_subject_id][
-                "psnr_eps"
-            ] = peak_signal_noise_ratio(
-                output_infill, gt_image_infill, epsilon=sys.float_info.epsilon
-            ).item()
+            overall_stats_dict[current_subject_id]["psnr_eps"] = (
+                peak_signal_noise_ratio(
+                    output_infill, gt_image_infill, epsilon=sys.float_info.epsilon
+                ).item()
+            )
 
             # only use fix data range to [0;1] if the data was normalized before
             if normalize:
                 # torchmetrics PSNR but with fixed data range of 0 to 1
-                overall_stats_dict[current_subject_id][
-                    "psnr_01"
-                ] = peak_signal_noise_ratio(
-                    output_infill, gt_image_infill, data_range=(0, 1)
-                ).item()
+                overall_stats_dict[current_subject_id]["psnr_01"] = (
+                    peak_signal_noise_ratio(
+                        output_infill, gt_image_infill, data_range=(0, 1)
+                    ).item()
+                )
 
                 # same as above but with epsilon for robustness
-                overall_stats_dict[current_subject_id][
-                    "psnr_01_eps"
-                ] = peak_signal_noise_ratio(
-                    output_infill,
-                    gt_image_infill,
-                    data_range=(0, 1),
-                    epsilon=sys.float_info.epsilon,
-                ).item()
+                overall_stats_dict[current_subject_id]["psnr_01_eps"] = (
+                    peak_signal_noise_ratio(
+                        output_infill,
+                        gt_image_infill,
+                        data_range=(0, 1),
+                        epsilon=sys.float_info.epsilon,
+                    ).item()
+                )
 
     pprint(overall_stats_dict)
     if outputfile is not None:

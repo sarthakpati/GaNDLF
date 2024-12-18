@@ -188,7 +188,10 @@ def get_dataframe(input_file: Union[str, pd.DataFrame]) -> pd.DataFrame:
 
 
 def convert_relative_paths_in_dataframe(
-    input_dataframe: pd.DataFrame, headers: dict, path_root: str
+    input_dataframe: pd.DataFrame,
+    headers: dict,
+    path_root: str,
+    force_convert: bool = False,
 ) -> pd.DataFrame:
     """
     This function takes a dataframe containing paths and a root path (usually to a data CSV file).
@@ -200,11 +203,12 @@ def convert_relative_paths_in_dataframe(
         input_dataframe (pd.DataFrame): The dataframe to be operated on (this is also modified).
         headers (dict): headers created from parseTrainingCSV (used for identifying fields to interpret as paths)
         path_root (str): A "root path" to which data is to be relatively found. Usually a data CSV.
+        force_convert (bool, optional): Whether to force the conversion of paths. Defaults to False.
 
     Returns:
         pandas.DataFrame: The dataset but with paths relativized.
     """
-    if isinstance(path_root, pd.DataFrame):
+    if isinstance(path_root, pd.DataFrame) and not force_convert:
         # Whenever this happens, we cannot get a csv file location,
         # but at this point the data has already been loaded from a CSV previously.
         return input_dataframe
